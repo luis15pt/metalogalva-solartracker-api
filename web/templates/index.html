@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/style.css?v=7">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Solar Tracker Control</h1>
+            <div class="status-bar">
+                <span class="status-indicator" id="serial-status">
+                    <span class="dot"></span>
+                    Serial: <span id="serial-text">Disconnected</span>
+                </span>
+                <span class="status-indicator" id="ws-status">
+                    <span class="dot"></span>
+                    WebSocket: <span id="ws-text">Disconnected</span>
+                </span>
+            </div>
+        </header>
+
+        <main>
+            <!-- Connection & Alarms Panel -->
+            <section class="panel" id="connection-panel">
+                <h2>Connection</h2>
+                <div class="form-row">
+                    <label for="port-select">Port:</label>
+                    <select id="port-select">
+                        <option value="">Select port...</option>
+                    </select>
+                    <button id="refresh-ports-btn" class="btn-secondary">Refresh</button>
+                </div>
+                <div class="form-row">
+                    <label for="baudrate-select">Baud Rate:</label>
+                    <select id="baudrate-select">
+                        <option value="9600" selected>9600</option>
+                        <option value="19200">19200</option>
+                        <option value="38400">38400</option>
+                        <option value="57600">57600</option>
+                        <option value="115200">115200</option>
+                    </select>
+                </div>
+                <div class="button-row">
+                    <button id="connect-btn" class="btn-primary">&#9654; Connect</button>
+                    <button id="disconnect-btn" class="btn-danger" disabled>&#9632; Disconnect</button>
+                </div>
+
+                <!-- Alarms Section -->
+                <div class="alarms-section">
+                    <h3>Active Alarms</h3>
+                    <div class="alarm-status" id="alarm-status">
+                        <span class="no-alarms">No active alarms</span>
+                    </div>
+                    <ul class="alarm-list" id="alarm-list"></ul>
+                    <button id="clear-alarms-btn" class="btn-warning">Clear Alarms</button>
+
+                    <!-- Alarm History -->
+                    <h3 class="mt-10">Alarm History</h3>
+                    <ul class="alarm-history" id="alarm-history">
+                        <li class="no-history">No alarm history</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Control Panel (Mode + Movement) -->
+            <section class="panel" id="control-panel">
+                <h2>Control</h2>
+                <div class="mode-buttons">
+                    <button id="mode-manual-btn" class="btn-mode">&#9995; Manual</button>
+                    <button id="mode-auto-btn" class="btn-mode">&#9728; Automatic</button>
+                </div>
+                <div class="dpad-container">
+                    <div class="dpad">
+                        <button class="dpad-btn up" data-direction="up">
+                            <span class="arrow">&#9650;</span>
+                        </button>
+                        <button class="dpad-btn left" data-direction="left">
+                            <span class="arrow">&#9664;</span>
+                        </button>
+                        <button class="dpad-btn center" id="stop-btn">
+                            STOP
+                        </button>
+                        <button class="dpad-btn right" data-direction="right">
+                            <span class="arrow">&#9654;</span>
+                        </button>
+                        <button class="dpad-btn down" data-direction="down">
+                            <span class="arrow">&#9660;</span>
+                        </button>
+                    </div>
+                </div>
+                <p class="hint">Click buttons to move (500ms per click)</p>
+            </section>
+
+            <!-- Status Panel (Combined: Status + Position + Parameters) -->
+            <section class="panel" id="status-panel">
+                <h2>Tracker Status</h2>
+
+                <!-- Date/Time/Firmware Row -->
+                <div class="status-grid">
+                    <div class="status-item">
+                        <label>Date</label>
+                        <span class="value" id="tracker-date">--/--/----</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Time</label>
+                        <span class="value" id="tracker-time">--:--:--</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Firmware</label>
+                        <span class="value" id="firmware-version">--</span>
+                    </div>
+                </div>
+
+                <!-- Sun Position Row -->
+                <div class="section-divider"></div>
+                <h3>Sun Position</h3>
+                <div class="position-display">
+                    <div class="position-item">
+                        <label>Azimuth</label>
+                        <span class="value" id="sun-azimuth">--</span>
+                        <span class="unit">°</span>
+                    </div>
+                    <div class="position-item">
+                        <label>Altitude</label>
+                        <span class="value" id="sun-altitude">--</span>
+                        <span class="unit">°</span>
+                    </div>
+                </div>
+
+                <!-- Panel Position Row -->
+                <div class="section-divider"></div>
+                <h3>Panel Position</h3>
+                <div class="position-display">
+                    <div class="position-item">
+                        <label>Horizontal (Azi)</label>
+                        <span class="value" id="pos-horizontal">--</span>
+                        <span class="unit">°</span>
+                    </div>
+                    <div class="position-item">
+                        <label>Vertical (Alt)</label>
+                        <span class="value" id="pos-vertical">--</span>
+                        <span class="unit">°</span>
+                    </div>
+                </div>
+
+                <!-- Wind Parameters -->
+                <div class="section-divider"></div>
+                <h3>Wind</h3>
+                <div class="param-row">
+                    <label>Current Speed:</label>
+                    <span class="value" id="wind-speed">--</span>
+                    <span class="unit">km/h</span>
+                </div>
+                <div class="param-row">
+                    <label>Max Threshold:</label>
+                    <input type="number" id="max-wind-input" min="0" max="99" value="0">
+                    <span class="unit">km/h</span>
+                    <button id="set-wind-btn" class="btn-secondary">Set</button>
+                </div>
+            </section>
+
+            <!-- Debug Panel -->
+            <section class="panel collapsed" id="debug-panel">
+                <h2 class="collapsible">Debug / Raw Commands</h2>
+                <div class="panel-content">
+                    <div class="form-row">
+                        <label for="raw-hex">Hex Data:</label>
+                        <input type="text" id="raw-hex" placeholder="e.g., 01020304">
+                        <button id="send-raw-btn" class="btn-secondary">Send</button>
+                    </div>
+                    <div class="log-container">
+                        <label>Log:</label>
+                        <pre id="debug-log"></pre>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Solar Tracker API v0.1.0</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js?v=8"></script>
+</body>
+</html>
