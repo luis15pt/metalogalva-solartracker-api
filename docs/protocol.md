@@ -355,25 +355,78 @@ This clears the error state and enables automatic sun tracking.
 
 **Warning:** After clearing alarms, if you command movement toward the faulty limit, the panel will overshoot again. Only move in the opposite direction until the sensor is repaired.
 
-### Alarm Byte Discrepancy (Under Investigation)
+### Alarm Query Command (DISCOVERED February 2026)
 
-**Issue:** STcontrol may display more alarms than the status response byte [37] contains. For example, STcontrol might show both "encoder error" and "horizontal limit" while the serial response only shows 0x02 (tilt_limit_flat).
+**IMPORTANT:** The full alarm bitmask is NOT in the standard status response (byte 37). Instead, use the **Type 0x01, Command 0x31** query to get accurate alarm information.
 
-**Possible explanations:**
-1. STcontrol caches alarm history and displays all alarms triggered during the session
-2. There may be a separate "get full alarm details" command not yet discovered
-3. The alarm byte may only show the most recent or highest-priority alarm
-4. Additional alarm data may be in the extended (134+ byte) response packets
+#### Alarm Query Command (9 bytes)
 
-**Current observed behavior:**
-- Byte [37] contains the alarm bitmask, but may not reflect all active alarms
-- When encoder error occurs, movement commands are blocked regardless of what byte [37] shows
-- STcontrol's alarm display appears more comprehensive than our parsed data
+```
++------+------+------+------+------+------+------+------+----------+
+| 0x81 | 0xFF | 0x00 | 0x82 | 0x00 | 0x01 | 0x31 | 0x83 | CHECKSUM |
++------+------+------+------+------+------+------+------+----------+
+  [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]      [8]
+```
 
-**TODO:** Capture serial traffic while STcontrol displays multiple alarms to determine if:
-- A different command retrieves full alarm state
-- Alarms are stored in additional byte locations
-- The alarm byte offset shifts in certain conditions
+Checksum: `0xB9` (sum of bytes 0-7)
+
+Full command: `81 FF 00 82 00 01 31 83 B9`
+
+#### Alarm Query Response
+
+The response includes a **short packet** containing the alarm bitmask:
+
+```
++------+------+------+------+------+------+-------+------+----------+
+| 0x81 | 0x00 | 0x01 | 0x82 | 0x00 | 0x01 | ALARM | 0x83 | CHECKSUM |
++------+------+------+------+------+------+-------+------+----------+
+  [0]    [1]    [2]    [3]    [4]    [5]    [6]     [7]      [8]
+```
+
+**Byte [6] contains the actual alarm bitmask.**
+
+#### Alarm Bitmask (from Query Response)
+
+| Bit | Mask | Alarm Type | Description |
+|-----|------|------------|-------------|
+| 0 | 0x01 | Vertical limit | Tilt axis vertical limit |
+| 1 | 0x02 | Tilt limit (flat) | Panel at flat/stow position |
+| 2 | 0x04 | East/West limit | Rotation axis limit reached |
+| 3 | 0x08 | Wind speed | Wind threshold exceeded |
+| 4 | 0x10 | Actuator current | Tilt motor overcurrent |
+| 5 | 0x20 | Rotation current | Rotation motor overcurrent |
+| 6 | 0x40 | Unknown | TBD |
+| 7 | 0x80 | Encoder error | Motor actuator encoder fault - BLOCKS ALL MOVEMENT |
+
+#### Example
+
+Query: `81 FF 00 82 00 01 31 83 B9`
+
+Response includes: `81 00 01 82 00 01 86 83 0E`
+
+Alarm byte: **0x86** = 10000110
+- Bit 7 (0x80): Encoder error ✓
+- Bit 2 (0x04): East/West limit ✓
+- Bit 1 (0x02): Tilt limit flat ✓
+
+#### Why Byte [37] in Status Response Differs
+
+The standard status response (Type 0x08) only shows a **subset** of alarms in byte [37]. This appears to be position-related status flags only (e.g., tilt_limit_flat). For the **complete alarm state**, always use the Type 0x01 Command 0x31 query.
+
+#### Important: Short Packet Appearance is Conditional
+
+**NOTE:** The short alarm packet may not always appear in the response. During testing, it was observed to:
+- Appear reliably when multiple alarms are active (encoder error + limit)
+- Stop appearing after alarms are cleared or tracker state changes
+- Possibly only appear when there are NEW or ACTIVE alarms to report
+
+If the short packet is not present, fall back to reading byte [37] from the standard status response, understanding it may only show a subset of alarms.
+
+**Recommended approach:**
+1. Send Type 0x01 Command 0x31
+2. Search response for short packet pattern `81 00 01 82 00 01 XX 83`
+3. If found, XX is the full alarm bitmask
+4. If not found, use byte [37] from standard status as fallback
 
 ### Additional Status Bytes Discovered (February 2026)
 
