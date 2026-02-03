@@ -355,6 +355,26 @@ This clears the error state and enables automatic sun tracking.
 
 **Warning:** After clearing alarms, if you command movement toward the faulty limit, the panel will overshoot again. Only move in the opposite direction until the sensor is repaired.
 
+### Alarm Byte Discrepancy (Under Investigation)
+
+**Issue:** STcontrol may display more alarms than the status response byte [37] contains. For example, STcontrol might show both "encoder error" and "horizontal limit" while the serial response only shows 0x02 (tilt_limit_flat).
+
+**Possible explanations:**
+1. STcontrol caches alarm history and displays all alarms triggered during the session
+2. There may be a separate "get full alarm details" command not yet discovered
+3. The alarm byte may only show the most recent or highest-priority alarm
+4. Additional alarm data may be in the extended (134+ byte) response packets
+
+**Current observed behavior:**
+- Byte [37] contains the alarm bitmask, but may not reflect all active alarms
+- When encoder error occurs, movement commands are blocked regardless of what byte [37] shows
+- STcontrol's alarm display appears more comprehensive than our parsed data
+
+**TODO:** Capture serial traffic while STcontrol displays multiple alarms to determine if:
+- A different command retrieves full alarm state
+- Alarms are stored in additional byte locations
+- The alarm byte offset shifts in certain conditions
+
 ### Manual Movement Commands Not Working in Auto Mode
 
 Movement commands (type 0x02) are correctly formatted and acknowledged, but **no physical movement occurs when in AUTO mode** (status 0x0E). The tracker prioritizes sun tracking over manual commands.
