@@ -355,6 +355,20 @@ This clears the error state and enables automatic sun tracking.
 
 **Warning:** After clearing alarms, if you command movement toward the faulty limit, the panel will overshoot again. Only move in the opposite direction until the sensor is repaired.
 
+### Rotation Encoder Error (Separate from Tilt Encoder)
+
+When the rotation (horizontal) encoder fails:
+- Horizontal position reads as **0.00°** instead of actual value
+- **Rotation commands are blocked** in all directions
+- **Tilt commands continue to work** - the axes are independent
+- Clearing alarms does NOT restore rotation - hardware fix required
+
+**Symptoms:**
+- Horizontal angle shows 0.00° (or another static incorrect value)
+- Rotation left/right commands have no effect
+- Tilt up/down commands work normally
+- STcontrol may show "encoder error" or similar alarm
+
 ### Alarm Query Command (DISCOVERED February 2026)
 
 **IMPORTANT:** The full alarm bitmask is NOT in the standard status response (byte 37). Instead, use the **Type 0x01, Command 0x31** query to get accurate alarm information.
