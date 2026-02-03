@@ -375,6 +375,22 @@ This clears the error state and enables automatic sun tracking.
 - Alarms are stored in additional byte locations
 - The alarm byte offset shifts in certain conditions
 
+### Additional Status Bytes Discovered (February 2026)
+
+During testing, these bytes were found to contain dynamic data:
+
+| Byte | Observed Values | Likely Purpose |
+|------|-----------------|----------------|
+| [14] | 0x0A-0xE4 (varies rapidly) | Movement counter, encoder position, or ADC value |
+| [15] | 0x01-0x08 (increments) | Movement duration counter - increments during active movement |
+| [37] | 0x02 (constant) | Tilt position indicator (not clearable alarm) |
+
+**Key observations:**
+- Byte [37] = 0x02 (tilt_limit_flat) remains set even when panel is at 62° (not flat), suggesting it's a latched status or has different meaning
+- Bytes [14-15] appear to be movement/encoder related counters, not alarm flags
+- The encoder error (0x80) and horizontal/rotation limit alarms shown in STcontrol are NOT visible in bytes [36-37]
+- Rotation movement commands are blocked while tilt commands work - suggesting separate alarm handling per axis
+
 ### Manual Movement Commands Not Working in Auto Mode
 
 Movement commands (type 0x02) are correctly formatted and acknowledged, but **no physical movement occurs when in AUTO mode** (status 0x0E). The tracker prioritizes sun tracking over manual commands.
