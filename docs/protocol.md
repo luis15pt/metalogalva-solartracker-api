@@ -355,19 +355,20 @@ This clears the error state and enables automatic sun tracking.
 
 **Warning:** After clearing alarms, if you command movement toward the faulty limit, the panel will overshoot again. Only move in the opposite direction until the sensor is repaired.
 
-### Rotation Encoder Error (Separate from Tilt Encoder)
+### Rotation Encoder Reading in Auto Mode
 
-When the rotation (horizontal) encoder fails:
-- Horizontal position reads as **0.00°** instead of actual value
-- **Rotation commands are blocked** in all directions
-- **Tilt commands continue to work** - the axes are independent
-- Clearing alarms does NOT restore rotation - hardware fix required
+**Note:** When in auto tracking mode (byte[7]=0x00), the horizontal position at bytes [20-24] may read as 0.00°. This does NOT necessarily indicate an encoder failure.
 
-**Symptoms:**
-- Horizontal angle shows 0.00° (or another static incorrect value)
-- Rotation left/right commands have no effect
-- Tilt up/down commands work normally
-- STcontrol may show "encoder error" or similar alarm
+In auto mode:
+- The actual panel horizontal position is at bytes [30-34]
+- This value tracks the sun azimuth (within ~0.2°)
+- The tracker is functioning correctly even if [20-24] shows 0.00°
+
+**True encoder failure symptoms:**
+- Panel physically doesn't rotate when sun moves
+- STcontrol shows "encoder error" alarm
+- Alarm byte includes 0x80 (encoder_error bit)
+- Manual rotation commands have no effect AND [30-34] doesn't track sun
 
 ### Alarm Query Command (DISCOVERED February 2026)
 
@@ -446,7 +447,7 @@ If the short packet is not present, fall back to reading byte [37] from the stan
 
 The response packet has two different structures depending on byte [7]:
 
-#### Mode 0x01 (Normal Operation)
+#### Mode 0x01 (Manual Mode / Detailed Status)
 ```
 Byte [7]  = 0x01
 Byte [8]  = Day
@@ -455,33 +456,35 @@ Byte [10] = Year (offset from 2000)
 Byte [11] = Second
 Byte [12] = Minute
 Byte [13] = Hour
-Bytes [16-19] = Panel Vertical (float, current position)
-Bytes [22-25] = Panel Horizontal (float, current position)
-Bytes [26-29] = Sun Altitude (float)
-Bytes [30-33] = Sun Azimuth (float)
-Byte [37] = Alarm subset
+Bytes [16-19] = Panel Vertical/Tilt (float, degrees)
+Bytes [22-25] = Panel Horizontal (float, degrees)
+Bytes [26-29] = Sun Altitude (float, degrees)
+Bytes [30-33] = Sun Azimuth (float, degrees)
+Byte [37] = Alarm/status flags
 ```
 
-#### Mode 0x00 (Error/Config Mode?)
+#### Mode 0x00 (Auto Tracking Mode)
 ```
 Byte [7]  = 0x00
-Bytes [8-10] = Unknown (possibly different date format)
-Byte [11] = Second
-Byte [12] = Minute
-Byte [13] = Hour
-Bytes [16-19] = Unknown (constant 24.86° observed - possibly limit?)
-Bytes [22-25] = Sun Azimuth (float)
-Bytes [26-29] = Sun Altitude (float)
-Bytes [30-33] = Unknown angle (float)
+Bytes [8-15] = Date/time (different format)
+Bytes [16-19] = Panel Tilt (float, degrees from vertical)
+Bytes [22-25] = Sun Azimuth (float, degrees)
+Bytes [26-29] = Sun Altitude (float, degrees)
+Bytes [30-33] = Panel Horizontal / Target (float, degrees - tracks sun azimuth)
 Byte [37] = 0x00
 ```
 
+**Key Discovery (February 2026):**
+- **Mode 0x00 = AUTO TRACKING MODE** (not an error state!)
+- When byte[7]=0x00, the tracker is actively following the sun
+- [30:34] closely matches sun azimuth (within 0.2°) and changes as sun moves
+- Panel tilt [16:20] shows current tilt angle from vertical
+- Verified by physical observation: panel orientation matches reported values
+
 **Observations:**
-- Mode 0x01: Returns live panel position data
-- Mode 0x00: Panel position appears fixed/unavailable, sun position still updates
-- Mode change trigger unknown - may be related to encoder errors
-- Unable to find command to switch between modes
-- When mode=0x00, movement commands may not update position readback
+- Mode 0x01: Used during manual control, provides detailed position data
+- Mode 0x00: Active during automatic sun tracking
+- The horizontal encoder reading may show 0.00° but [30:34] shows actual tracking position
 
 ### Additional Status Bytes Discovered (February 2026)
 
