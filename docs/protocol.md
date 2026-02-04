@@ -442,6 +442,47 @@ If the short packet is not present, fall back to reading byte [37] from the stan
 3. If found, XX is the full alarm bitmask
 4. If not found, use byte [37] from standard status as fallback
 
+### Packet Mode Byte [7] - Two Response Formats
+
+The response packet has two different structures depending on byte [7]:
+
+#### Mode 0x01 (Normal Operation)
+```
+Byte [7]  = 0x01
+Byte [8]  = Day
+Byte [9]  = Month
+Byte [10] = Year (offset from 2000)
+Byte [11] = Second
+Byte [12] = Minute
+Byte [13] = Hour
+Bytes [16-19] = Panel Vertical (float, current position)
+Bytes [22-25] = Panel Horizontal (float, current position)
+Bytes [26-29] = Sun Altitude (float)
+Bytes [30-33] = Sun Azimuth (float)
+Byte [37] = Alarm subset
+```
+
+#### Mode 0x00 (Error/Config Mode?)
+```
+Byte [7]  = 0x00
+Bytes [8-10] = Unknown (possibly different date format)
+Byte [11] = Second
+Byte [12] = Minute
+Byte [13] = Hour
+Bytes [16-19] = Unknown (constant 24.86° observed - possibly limit?)
+Bytes [22-25] = Sun Azimuth (float)
+Bytes [26-29] = Sun Altitude (float)
+Bytes [30-33] = Unknown angle (float)
+Byte [37] = 0x00
+```
+
+**Observations:**
+- Mode 0x01: Returns live panel position data
+- Mode 0x00: Panel position appears fixed/unavailable, sun position still updates
+- Mode change trigger unknown - may be related to encoder errors
+- Unable to find command to switch between modes
+- When mode=0x00, movement commands may not update position readback
+
 ### Additional Status Bytes Discovered (February 2026)
 
 During testing, these bytes were found to contain dynamic data:
