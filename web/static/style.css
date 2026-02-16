@@ -1,0 +1,549 @@
+/* Solar Tracker Control - Stylesheet */
+
+:root {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-panel: #0f3460;
+    --text-primary: #eaeaea;
+    --text-secondary: #a0a0a0;
+    --accent-primary: #e94560;
+    --accent-secondary: #0f4c75;
+    --success: #00c853;
+    --warning: #ffc107;
+    --danger: #ff5252;
+    --border-radius: 8px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+header h1 {
+    font-size: 1.8rem;
+    color: var(--accent-primary);
+}
+
+.status-bar {
+    display: flex;
+    gap: 20px;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    border-radius: 4px;
+    background-color: rgba(255, 82, 82, 0.15);
+    border: 1px solid var(--danger);
+}
+
+.status-indicator .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: var(--danger);
+    transition: background-color 0.3s;
+    box-shadow: 0 0 6px var(--danger);
+}
+
+.status-indicator.connected {
+    background-color: rgba(0, 200, 83, 0.15);
+    border-color: var(--success);
+}
+
+.status-indicator.connected .dot {
+    background-color: var(--success);
+    box-shadow: 0 0 6px var(--success);
+}
+
+/* Main Layout */
+main {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+/* Panels */
+.panel {
+    background-color: var(--bg-panel);
+    border-radius: var(--border-radius);
+    padding: 20px;
+}
+
+.panel h2 {
+    font-size: 1.1rem;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--accent-secondary);
+    color: var(--text-primary);
+}
+
+.panel h3 {
+    font-size: 0.95rem;
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+}
+
+.section-divider {
+    height: 1px;
+    background-color: var(--accent-secondary);
+    margin: 20px 0;
+    opacity: 0.5;
+}
+
+.alarms-section {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid var(--accent-secondary);
+}
+
+/* Forms */
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.form-row label {
+    min-width: 100px;
+    color: var(--text-secondary);
+}
+
+.form-row select,
+.form-row input[type="text"],
+.form-row input[type="number"] {
+    flex: 1;
+    min-width: 120px;
+    padding: 8px 12px;
+    border: 1px solid var(--accent-secondary);
+    border-radius: 4px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+
+.form-row select:focus,
+.form-row input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+/* Buttons */
+.button-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+/* Connection status styling */
+.button-row .btn-primary:disabled {
+    background-color: var(--bg-secondary);
+    border: 2px solid var(--success);
+    color: var(--success);
+    opacity: 1;
+}
+
+.button-row .btn-danger:disabled {
+    background-color: var(--bg-secondary);
+    opacity: 0.4;
+}
+
+button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background-color: var(--success);
+    color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background-color: #00a844;
+}
+
+.btn-secondary {
+    background-color: var(--accent-secondary);
+    color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background-color: #1a5a8a;
+}
+
+.btn-danger {
+    background-color: var(--danger);
+    color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: #e04545;
+}
+
+.btn-warning {
+    background-color: var(--warning);
+    color: #1a1a2e;
+}
+
+.btn-warning:hover:not(:disabled) {
+    background-color: #e6ae00;
+}
+
+/* Mode Buttons */
+.mode-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.btn-mode {
+    flex: 1;
+    padding: 15px;
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 2px solid var(--accent-secondary);
+    position: relative;
+}
+
+.btn-mode:hover:not(.active) {
+    background-color: var(--accent-secondary);
+    color: var(--text-primary);
+}
+
+.btn-mode.active {
+    background-color: var(--success);
+    color: white;
+    border-color: var(--success);
+    font-weight: bold;
+}
+
+.btn-mode.active::after {
+    content: ' (ACTIVE)';
+    font-size: 0.7em;
+    opacity: 0.9;
+}
+
+/* D-Pad */
+.dpad-container {
+    display: flex;
+    justify-content: center;
+    padding: 20px 0;
+}
+
+.dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 70px);
+    grid-template-rows: repeat(3, 70px);
+    gap: 5px;
+}
+
+.dpad-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-secondary);
+    border: 2px solid var(--accent-secondary);
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    border-radius: 8px;
+    transition: all 0.1s;
+}
+
+.dpad-btn:hover:not(:disabled) {
+    background-color: var(--accent-secondary);
+}
+
+.dpad-btn:active:not(:disabled) {
+    background-color: var(--accent-primary);
+    transform: scale(0.95);
+}
+
+.dpad-btn.up { grid-column: 2; grid-row: 1; }
+.dpad-btn.left { grid-column: 1; grid-row: 2; }
+.dpad-btn.center { grid-column: 2; grid-row: 2; font-size: 0.8rem; font-weight: bold; }
+.dpad-btn.right { grid-column: 3; grid-row: 2; }
+.dpad-btn.down { grid-column: 2; grid-row: 3; }
+
+.dpad-btn.center {
+    background-color: var(--danger);
+    border-color: var(--danger);
+}
+
+.dpad-btn.center:hover {
+    background-color: #e04545;
+}
+
+.hint {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 10px;
+}
+
+/* Position Display */
+/* Status Grid */
+.status-grid {
+    display: flex;
+    gap: 20px;
+    justify-content: space-around;
+    flex-wrap: wrap;
+}
+
+.status-item {
+    text-align: center;
+    min-width: 80px;
+}
+
+.status-item label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.status-item .value {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.position-display {
+    display: flex;
+    gap: 20px;
+    justify-content: space-around;
+}
+
+.position-item {
+    text-align: center;
+}
+
+.position-item label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.position-item .value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--accent-primary);
+}
+
+.position-item .unit {
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+/* Alarms */
+.alarm-status {
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.alarm-status .no-alarms {
+    color: var(--success);
+}
+
+.alarm-status.has-alarms {
+    background-color: rgba(255, 82, 82, 0.2);
+    border: 1px solid var(--danger);
+}
+
+.alarm-status.has-alarms .no-alarms {
+    display: none;
+}
+
+.alarm-list {
+    list-style: none;
+    margin-bottom: 15px;
+}
+
+.alarm-list li {
+    padding: 8px 12px;
+    background-color: rgba(255, 82, 82, 0.1);
+    border-left: 3px solid var(--danger);
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+/* Alarm History */
+.alarm-history {
+    list-style: none;
+    max-height: 150px;
+    overflow-y: auto;
+    font-size: 0.85rem;
+}
+
+.alarm-history li {
+    padding: 6px 10px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-left: 2px solid var(--text-secondary);
+    margin-bottom: 4px;
+    color: var(--text-secondary);
+}
+
+.alarm-history .history-time {
+    color: var(--warning);
+    font-family: monospace;
+}
+
+.alarm-history .no-history {
+    border-left-color: transparent;
+    background-color: transparent;
+    font-style: italic;
+}
+
+.mt-10 {
+    margin-top: 10px;
+}
+
+/* Parameters */
+.param-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.param-row label {
+    flex: 1;
+    color: var(--text-secondary);
+}
+
+.param-row .value {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--accent-primary);
+    min-width: 50px;
+    text-align: right;
+}
+
+.param-row .unit {
+    color: var(--text-secondary);
+    min-width: 50px;
+}
+
+.param-row input[type="number"] {
+    width: 80px;
+    text-align: center;
+}
+
+/* Debug Panel */
+.panel.collapsed .panel-content {
+    display: none;
+}
+
+.panel h2.collapsible {
+    cursor: pointer;
+}
+
+.panel h2.collapsible::after {
+    content: ' +';
+    float: right;
+}
+
+.panel:not(.collapsed) h2.collapsible::after {
+    content: ' -';
+}
+
+.log-container {
+    margin-top: 15px;
+}
+
+.log-container label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+}
+
+#debug-log {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--accent-secondary);
+    border-radius: 4px;
+    padding: 10px;
+    height: 150px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Footer */
+footer {
+    text-align: center;
+    padding: 20px;
+    margin-top: 30px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .status-bar {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    main {
+        grid-template-columns: 1fr;
+    }
+
+    .dpad {
+        grid-template-columns: repeat(3, 60px);
+        grid-template-rows: repeat(3, 60px);
+    }
+
+    .position-display {
+        flex-direction: column;
+        gap: 15px;
+    }
+}

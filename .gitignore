@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+.venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+*.local
+
+# Logs
+logs/
+*.log
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+captures/
+*.pcap
+*.bin
+
+# Original Windows app (don't commit binaries)
+*.exe
+
+# Firmware and capture files (large binaries)
+*.dmslog8
+*.s19
+*.abs
+steps recorder.zip
+Actualização Firmware/
+
+# Mosquitto data (runtime state)
+mosquitto/data/
+mosquitto/log/
+
+# Build artifacts
+radare2-*/

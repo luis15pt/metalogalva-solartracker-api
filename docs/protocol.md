@@ -2,7 +2,12 @@
 
 ## Overview
 
-This document describes the serial protocol used by the Metalogalva solar tracker, reverse-engineered from STcontrol V4.0.4.0.exe.
+This document describes the serial protocol used by the Metalogalva solar tracker (STS.2A firmware V2.31).
+
+**Reverse engineering sources:**
+- STcontrol V4.0.4.0.exe (Windows control application)
+- Direct COM port capture with Device Monitoring Studio (February 2026)
+- HCS12 firmware disassembly (STS.2A_V2.31.abs.s19)
 
 ## Connection Settings
 
@@ -60,28 +65,102 @@ The protocol uses variable-length packets with different structures based on the
 | 8 | 0x83/CHECKSUM | Footer marker (movement) or Checksum (others) |
 | 9 | CHECKSUM | Checksum (movement only) |
 
-## Command Types (Byte 6)
+## Packet Types (Byte 5)
 
-### Movement Commands (Type 0x02)
+| Type | Size | Description |
+|------|------|-------------|
+| 0x01 | 9 | Mode/Query/Alarm commands |
+| 0x02 | 10 | Movement commands |
+| 0x03 | 11 | Configuration commands |
+| 0x08 | 9 | Status request |
+| 0x09 | 16 | Settings commands (GPS location) |
 
-| Value | ASCII | Description |
-|-------|-------|-------------|
-| 0x23 | '#' | Start movement |
-| 0x24 | '$' | Stop movement |
+## Command Reference (Byte 6)
 
-### Alarm Commands (Type 0x01)
+### Movement Commands (Type 0x02) - CORRECTED Feb 2026
 
-| Value | ASCII | Description |
-|-------|-------|-------------|
-| 0x40 | '@' | Clear all alarms |
+**Format:** `81 FF 00 82 00 02 [CMD] 01 83 [CHECKSUM]`
+
+| Cmd | Hex | Description | Full Packet |
+|-----|-----|-------------|-------------|
+| RIGHT | 0x20 | Rotate East | `81 FF 00 82 00 02 20 01 83 A8` |
+| LEFT | 0x21 | Rotate West | `81 FF 00 82 00 02 21 01 83 A9` |
+| UP | 0x22 | Tilt up | `81 FF 00 82 00 02 22 01 83 AA` |
+| DOWN | 0x23 | Tilt down | `81 FF 00 82 00 02 23 01 83 AB` |
+| STOP | 0x24 | Stop all | `81 FF 00 82 00 02 24 01 83 AC` |
+| POS_1 | 0x25 | Preset position 1 (from firmware) | `81 FF 00 82 00 02 25 01 83 AD` |
+| POS_2 | 0x26 | Preset position 2 - HOME? (from firmware) | `81 FF 00 82 00 02 26 01 83 AE` |
+| POS_3 | 0x27 | Preset position 3 - STOW? (from firmware) | `81 FF 00 82 00 02 27 01 83 AF` |
+
+**Note:** Byte 7 is always 0x01 for movement commands.
+
+### Mode Commands (Type 0x01) - CONFIRMED Feb 2026
+
+**Format:** `81 FF 00 82 00 01 [CMD] 83 [CHECKSUM]`
+
+| Cmd | Hex | Description | Full Packet |
+|-----|-----|-------------|-------------|
+| MANUAL | 0x10 | Switch to manual mode | `81 FF 00 82 00 01 10 83 96` |
+| AUTO | 0x11 | Switch to automatic mode | `81 FF 00 82 00 01 11 83 97` |
+
+### Query Commands (Type 0x01)
+
+| Cmd | Hex | Description | Full Packet |
+|-----|-----|-------------|-------------|
+| ALARM_QUERY | 0x31 | Query alarm status | `81 FF 00 82 00 01 31 83 B7` |
+| QUERY_32 | 0x32 | Unknown query | `81 FF 00 82 00 01 32 83 B8` |
+| QUERY_35 | 0x35 | Unknown query | `81 FF 00 82 00 01 35 83 BB` |
+| QUERY_36 | 0x36 | Unknown query | `81 FF 00 82 00 01 36 83 BC` |
+| CLEAR_ALARMS | 0x40 | Clear all alarms | `81 FF 00 82 00 01 40 83 C6` |
+
+### Configuration Commands (Type 0x03) - NEW Feb 2026
+
+**Format:** `81 FF 00 82 00 03 [CMD] [P1] [P2] 83 [CHECKSUM]`
+
+| Cmd | Hex | Description | Full Packet |
+|-----|-----|-------------|-------------|
+| ZERO_PANEL | 0x34 | Reset panel position (ZERAR PAINEL) | `81 FF 00 82 00 03 34 00 00 83 BC` |
 
 ### Status Commands (Type 0x08)
 
-| Value | ASCII | Description |
-|-------|-------|-------------|
-| 0x30 | '0' | Request current status |
+| Cmd | Hex | Description | Full Packet |
+|-----|-----|-------------|-------------|
+| STATUS | 0x30 | Request current status | `81 FF 00 82 00 08 30 83 BD` |
 
-## Direction Codes (Byte 7)
+### Settings Commands (Type 0x09) - NEW Feb 2026
+
+**Format:** `81 FF 00 82 00 09 [CMD] [DATA...] 83 [CHECKSUM]`
+
+| Cmd | Hex | Description | Data Format |
+|-----|-----|-------------|-------------|
+| DATE_TIME | 0x32 | Set tracker date/time | 7 bytes: YEAR MONTH DAY HOUR MIN SEC 00 |
+| GPS_LOCATION | 0x33 | Set tracker GPS location | 8 bytes: LAT (float32 LE) + LON (float32 LE) |
+
+**Example Date/Time command (16 bytes):**
+```
+81 FF 00 82 00 09 32 1A 02 0E 0A 1E 00 00 83 XX
+                    [Y][M][D][H][M][S][R]
+Year:   26 (0x1A) = 2026
+Month:  2  (0x02) = February
+Day:    14 (0x0E) = 14th
+Hour:   10 (0x0A) = 10:00
+Minute: 30 (0x1E) = :30
+Second: 0  (0x00) = :00
+Reserved: 0x00
+```
+
+**Example GPS command (16 bytes):**
+```
+81 FF 00 82 00 09 33 06 2D 22 42 39 2E 0B C1 83 8B
+                    └──LAT──┘ └──LON──┘
+Latitude:  40.5440° N (bytes 06 2D 22 42 as little-endian float)
+Longitude: -8.6988° W (bytes 39 2E 0B C1 as little-endian float)
+Location: Portugal (Coimbra/Aveiro region)
+```
+
+## Legacy Direction Codes (Deprecated)
+
+These were the old interpretation before direct serial capture:
 
 | Value | Direction |
 |-------|-----------|
@@ -90,6 +169,8 @@ The protocol uses variable-length packets with different structures based on the
 | 0x02 | Up (Tilt up) |
 | 0x03 | Left (Rotate West) |
 | 0x04 | Right (Rotate East) |
+
+**Note:** The actual protocol uses command codes 0x20-0x27 directly, not direction bytes.
 
 ## Checksum Calculation
 
@@ -103,32 +184,88 @@ def calculate_checksum(data: bytes) -> int:
 
 ## Example Commands
 
-### Start Moving Down
+### Movement Commands (Corrected Feb 2026)
 
 ```
-81 FF 00 82 00 02 23 01 83 AB
+Move Down:  81 FF 00 82 00 02 23 01 83 AB  (Cmd 0x23 = DOWN)
+Move Up:    81 FF 00 82 00 02 22 01 83 AA  (Cmd 0x22 = UP)
+Move Left:  81 FF 00 82 00 02 21 01 83 A9  (Cmd 0x21 = LEFT/West)
+Move Right: 81 FF 00 82 00 02 20 01 83 A8  (Cmd 0x20 = RIGHT/East)
+Stop All:   81 FF 00 82 00 02 24 01 83 AC  (Cmd 0x24 = STOP)
 ```
-- Command: 0x23 (Start)
-- Direction: 0x01 (Down)
-- Checksum: 0xAB
 
-### Stop Moving Down
-
-```
-81 FF 00 82 00 02 24 01 83 AC
-```
-- Command: 0x24 (Stop)
-- Direction: 0x01 (Down)
-- Checksum: 0xAC
-
-### Start Moving Up
+### Mode Commands
 
 ```
-81 FF 00 82 00 02 23 02 83 AC
+Manual Mode: 81 FF 00 82 00 01 10 83 96
+Auto Mode:   81 FF 00 82 00 01 11 83 97
 ```
-- Command: 0x23 (Start)
-- Direction: 0x02 (Up)
-- Checksum: 0xAC
+
+## Firmware-Discovered Commands (from STS.2A_V2.31)
+
+Complete analysis of HCS12 firmware revealed 23 total commands:
+
+### Preset Position Commands (Type 0x02)
+
+| Cmd | Hex | Description | Status |
+|-----|-----|-------------|--------|
+| POS_1 | 0x25 | Preset position 1 | Implemented (untested) |
+| POS_2 | 0x26 | Preset position 2 (HOME?) | Implemented (untested) |
+| POS_3 | 0x27 | Preset position 3 (STOW?) | Implemented (untested) |
+
+### Extended Control Commands (Type 0x01)
+
+| Cmd | Hex | Sub-cmds | Description | Status |
+|-----|-----|----------|-------------|--------|
+| EXTENDED_CTRL_A | 0x41 | 0x02, 0x03, 0x0A | Advanced calibration | Implemented (untested) |
+| EXTENDED_CTRL_B | 0x42 | 0x03, 0x07 | GPS/Position data operations | Implemented (untested) |
+
+**Example: Query GPS Data**
+```
+81 FF 00 82 00 01 42 07 83 [CHECKSUM]
+```
+
+### Diagnostic Commands (Type 0x01) - USE WITH CAUTION
+
+| Cmd | Hex | Sub-cmd | Description | Status |
+|-----|-----|---------|-------------|--------|
+| DIAG_DEBUG | 0xF0 | 0x0D | Enter debug/diagnostic mode | Implemented (untested) |
+| DIAG_FIRMWARE | 0xF1 | - | Firmware information | Implemented (untested) |
+| DIAG_EXTENDED | 0xF2 | - | Extended diagnostics | Implemented (untested) |
+
+**Warning:** Diagnostic commands may put the tracker in unexpected states. Use only for debugging.
+
+### Memory Locations (HCS12 Firmware)
+
+| Address | Purpose |
+|---------|---------|
+| 0x1854 | Movement direction register |
+| 0x1859 | Movement enable flag |
+| 0x185A | Secondary movement flag |
+| 0x12CD-0x12D3 | RTC memory (date/time) |
+| 0x12CE-0x12D2 | GPS/position data |
+| 0x15B0-0x15B2 | Secondary position data |
+| 0x1501 | Debug mode flag |
+
+### Default Calibration Constants (from 0x30BE00)
+
+| Value | Purpose |
+|-------|---------|
+| 41.25° | Default Latitude (northern Portugal) |
+| -8.30° | Default Longitude (northern Portugal) |
+| 85.0° | Maximum elevation angle |
+| 270.0° | Azimuth reference (West) |
+| 5.0 m/s | Wind speed threshold |
+
+### Date/Time Validation Ranges
+
+| Field | Range | Hex Max |
+|-------|-------|---------|
+| Month | 1-12 | 0x0C |
+| Day | 1-31 | 0x1F |
+| Hour | 0-23 | 0x17 |
+| Minute | 0-59 | 0x3B |
+| Second | 0-59 | 0x3B |
 
 ### Stop Moving Up
 
@@ -522,10 +659,10 @@ To enable manual control, a **mode switch command** is needed (not yet discovere
 
 The following commands still need further investigation:
 
-- [ ] **Set Auto/Manual mode** (CRITICAL - likely packet type 0x03 with unknown parameters)
+- [x] **Set Auto/Manual mode** - IMPLEMENTED (Type 0x01, Cmd 0x10=manual, 0x11=auto)
+- [x] **Time synchronization** - IMPLEMENTED (Type 0x09, Cmd 0x32 - from firmware analysis)
 - [ ] Set East/West limits (uses 16-byte packets with float values)
 - [ ] Set max wind threshold
-- [ ] Time synchronization
 
 ---
 
