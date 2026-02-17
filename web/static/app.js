@@ -55,7 +55,6 @@ const elements = {
     clearAlarmsBtn: document.getElementById('clear-alarms-btn'),
 
     // Parameters
-    windSpeed: document.getElementById('wind-speed'),
     maxWindInput: document.getElementById('max-wind-input'),
     setWindBtn: document.getElementById('set-wind-btn'),
 
@@ -98,6 +97,24 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 }
 
 // =============================================================================
+// Button Loading Wrapper
+// =============================================================================
+
+async function withLoading(btn, asyncFn) {
+    const originalHTML = btn.innerHTML;
+    btn.classList.add('loading');
+    btn.innerHTML = '<span class="btn-spinner"></span>' + originalHTML;
+    btn.disabled = true;
+    try {
+        await asyncFn();
+    } finally {
+        btn.classList.remove('loading');
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+    }
+}
+
+// =============================================================================
 // WebSocket Functions
 // =============================================================================
 
@@ -109,6 +126,7 @@ function connectWebSocket() {
 
     ws.onopen = () => {
         log('WebSocket connected');
+        elements.wsStatus.classList.remove('reconnecting');
         updateWsStatus(true);
         clearTimeout(wsReconnectTimer);
     };
@@ -116,7 +134,8 @@ function connectWebSocket() {
     ws.onclose = () => {
         log('WebSocket disconnected');
         updateWsStatus(false);
-        // Attempt to reconnect after 3 seconds
+        elements.wsStatus.classList.add('reconnecting');
+        elements.wsText.textContent = 'Reconnecting...';
         wsReconnectTimer = setTimeout(connectWebSocket, 3000);
     };
 
@@ -132,6 +151,202 @@ function connectWebSocket() {
             log(`WebSocket message parse error: ${error}`);
         }
     };
+}
+
+// =============================================================================
+// SVG Gauge Functions
+// =============================================================================
+
+function initCompassTicks() {
+    const ticksGroup = document.getElementById('compass-ticks');
+    if (!ticksGroup) return;
+    for (let deg = 0; deg < 360; deg += 10) {
+        const isMajor = deg % 30 === 0;
+        const rad = (deg - 90) * Math.PI / 180;
+        const r1 = isMajor ? 82 : 87;
+        const r2 = 92;
+        const x1 = 100 + r1 * Math.cos(rad);
+        const y1 = 100 + r1 * Math.sin(rad);
+        const x2 = 100 + r2 * Math.cos(rad);
+        const y2 = 100 + r2 * Math.sin(rad);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x1);
+        line.setAttribute('y1', y1);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        line.setAttribute('stroke', isMajor ? '#a0a0a0' : 'rgba(160,160,160,0.3)');
+        line.setAttribute('stroke-width', isMajor ? '1.5' : '0.75');
+        ticksGroup.appendChild(line);
+    }
+}
+
+function initAltitudeTicks() {
+    const ticksGroup = document.getElementById('altitude-ticks');
+    if (!ticksGroup) return;
+    const cx = 100, cy = 105, r = 85;
+    for (let alt = 0; alt <= 90; alt += 15) {
+        const angle = 180 - (alt * 180 / 90);
+        const rad = angle * Math.PI / 180;
+        const x1 = cx + (r - 5) * Math.cos(rad);
+        const y1 = cy - (r - 5) * Math.sin(rad);
+        const x2 = cx + (r + 3) * Math.cos(rad);
+        const y2 = cy - (r + 3) * Math.sin(rad);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x1);
+        line.setAttribute('y1', y1);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        line.setAttribute('stroke', '#a0a0a0');
+        line.setAttribute('stroke-width', '1');
+        ticksGroup.appendChild(line);
+
+        // Label for intermediate ticks
+        if (alt > 0 && alt < 90) {
+            const lx = cx + (r + 12) * Math.cos(rad);
+            const ly = cy - (r + 12) * Math.sin(rad);
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', lx);
+            text.setAttribute('y', ly);
+            text.setAttribute('fill', '#a0a0a0');
+            text.setAttribute('font-size', '8');
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('dominant-baseline', 'central');
+            text.textContent = alt + '\u00B0';
+            ticksGroup.appendChild(text);
+        }
+    }
+}
+
+function initWindTicks() {
+    const ticksGroup = document.getElementById('wind-ticks');
+    if (!ticksGroup) return;
+    const cx = 80, cy = 85, r = 65;
+    // Ticks at 0, 10, 20, 30, 40, 50
+    for (let val = 0; val <= 50; val += 10) {
+        const fraction = val / 50;
+        const angle = (180 + fraction * 180) * Math.PI / 180;
+        const x1 = cx + (r - 4) * Math.cos(angle);
+        const y1 = cy + (r - 4) * Math.sin(angle);
+        const x2 = cx + (r + 3) * Math.cos(angle);
+        const y2 = cy + (r + 3) * Math.sin(angle);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x1);
+        line.setAttribute('y1', y1);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        line.setAttribute('stroke', '#a0a0a0');
+        line.setAttribute('stroke-width', '1');
+        ticksGroup.appendChild(line);
+
+        // Label
+        const lx = cx + (r + 12) * Math.cos(angle);
+        const ly = cy + (r + 12) * Math.sin(angle);
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', lx);
+        text.setAttribute('y', ly);
+        text.setAttribute('fill', '#a0a0a0');
+        text.setAttribute('font-size', '8');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'central');
+        text.textContent = val;
+        ticksGroup.appendChild(text);
+    }
+}
+
+function updateCompass(sunAzimuth, panelAzimuth) {
+    const sunNeedle = document.getElementById('sun-needle');
+    const panelNeedle = document.getElementById('panel-needle');
+    if (sunNeedle && sunAzimuth !== null) {
+        sunNeedle.style.transform = `rotate(${sunAzimuth}deg)`;
+    }
+    if (panelNeedle && panelAzimuth !== null) {
+        panelNeedle.style.transform = `rotate(${panelAzimuth}deg)`;
+    }
+}
+
+function updateAltitudeGauge(sunAltitude, panelVertical) {
+    const cx = 100, cy = 105, r = 80;
+
+    function altToPoint(alt) {
+        if (alt === null || alt === undefined) return null;
+        const clamped = Math.max(0, Math.min(90, alt));
+        const angle = 180 - (clamped * 180 / 90);
+        const rad = angle * Math.PI / 180;
+        return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
+    }
+
+    const sunNeedle = document.getElementById('sun-alt-needle');
+    const panelNeedle = document.getElementById('panel-alt-needle');
+
+    if (sunNeedle && sunAltitude !== null) {
+        const pt = altToPoint(sunAltitude);
+        if (pt) {
+            sunNeedle.setAttribute('x2', pt.x);
+            sunNeedle.setAttribute('y2', pt.y);
+        }
+    }
+
+    if (panelNeedle && panelVertical !== null) {
+        const pt = altToPoint(panelVertical);
+        if (pt) {
+            panelNeedle.setAttribute('x2', pt.x);
+            panelNeedle.setAttribute('y2', pt.y);
+        }
+    }
+}
+
+function updateWindGauge(speed, threshold) {
+    const maxScale = Math.max(threshold || 50, 50);
+    const cx = 80, cy = 85, r = 65;
+
+    function speedToArcPath(value) {
+        if (value === null || value === undefined || value <= 0) return '';
+        const clamped = Math.max(0, Math.min(value, maxScale));
+        const fraction = clamped / maxScale;
+        const endAngle = 180 + fraction * 180;
+        const endRad = endAngle * Math.PI / 180;
+        const sx = cx - r; // Start at 180 degrees (left)
+        const sy = cy;
+        const ex = cx + r * Math.cos(endRad);
+        const ey = cy + r * Math.sin(endRad);
+        const largeArc = fraction > 0.5 ? 1 : 0;
+        return `M ${sx} ${sy} A ${r} ${r} 0 ${largeArc} 1 ${ex} ${ey}`;
+    }
+
+    function speedColor(value, thresh) {
+        if (!thresh) return '#00c853';
+        const pct = value / thresh;
+        if (pct < 0.5) return '#00c853';
+        if (pct < 0.8) return '#ffc107';
+        return '#ff5252';
+    }
+
+    const arcEl = document.getElementById('wind-arc-value');
+    const textEl = document.getElementById('wind-speed-gauge');
+    const markerEl = document.getElementById('wind-threshold-marker');
+
+    if (arcEl && speed !== null && speed !== undefined) {
+        arcEl.setAttribute('d', speedToArcPath(speed));
+        arcEl.setAttribute('stroke', speedColor(speed, threshold));
+    }
+
+    if (textEl) {
+        textEl.textContent = speed !== null && speed !== undefined ? speed : '--';
+    }
+
+    // Position threshold marker
+    if (markerEl && threshold) {
+        const fraction = Math.min(threshold / maxScale, 1);
+        const angle = (180 + fraction * 180) * Math.PI / 180;
+        const x1 = cx + (r + 5) * Math.cos(angle);
+        const y1 = cy + (r + 5) * Math.sin(angle);
+        const x2 = cx + (r - 10) * Math.cos(angle);
+        const y2 = cy + (r - 10) * Math.sin(angle);
+        markerEl.setAttribute('x1', x1);
+        markerEl.setAttribute('y1', y1);
+        markerEl.setAttribute('x2', x2);
+        markerEl.setAttribute('y2', y2);
+    }
 }
 
 // =============================================================================
@@ -170,28 +385,37 @@ function updateUI(status) {
         if (fwEl) fwEl.textContent = status.firmware_version;
     }
 
-    // Update sun position
-    if (status.sun_position) {
-        elements.sunAzimuth.textContent =
-            status.sun_position.azimuth !== null ? status.sun_position.azimuth.toFixed(2) : '--';
-        elements.sunAltitude.textContent =
-            status.sun_position.altitude !== null ? status.sun_position.altitude.toFixed(2) : '--';
+    // Update sun position (text + compass)
+    const sunAzi = status.sun_position?.azimuth ?? null;
+    const sunAlt = status.sun_position?.altitude ?? null;
+    if (elements.sunAzimuth) {
+        elements.sunAzimuth.textContent = sunAzi !== null ? sunAzi.toFixed(2) : '--';
+    }
+    if (elements.sunAltitude) {
+        elements.sunAltitude.textContent = sunAlt !== null ? sunAlt.toFixed(2) : '--';
     }
 
-    // Update panel position
-    if (status.position) {
-        elements.posHorizontal.textContent =
-            status.position.horizontal !== null ? status.position.horizontal.toFixed(2) : '--';
-        elements.posVertical.textContent =
-            status.position.vertical !== null ? status.position.vertical.toFixed(2) : '--';
+    // Update panel position (text + compass)
+    const panelHoriz = status.position?.horizontal ?? null;
+    const panelVert = status.position?.vertical ?? null;
+    if (elements.posHorizontal) {
+        elements.posHorizontal.textContent = panelHoriz !== null ? panelHoriz.toFixed(2) : '--';
     }
+    if (elements.posVertical) {
+        elements.posVertical.textContent = panelVert !== null ? panelVert.toFixed(2) : '--';
+    }
+
+    // Update gauges
+    updateCompass(sunAzi, panelHoriz);
+    updateAltitudeGauge(sunAlt, panelVert);
 
     // Update wind
-    elements.windSpeed.textContent =
-        status.wind_speed !== null ? status.wind_speed : '--';
-    if (status.max_wind_threshold !== null) {
-        elements.maxWindInput.value = status.max_wind_threshold;
+    const windVal = status.wind_speed ?? null;
+    const windThresh = status.max_wind_threshold ?? null;
+    if (windThresh !== null) {
+        elements.maxWindInput.value = windThresh;
     }
+    updateWindGauge(windVal, windThresh);
 
     // Update alarms
     updateAlarms(status.alarms || []);
@@ -200,6 +424,7 @@ function updateUI(status) {
 
 function updateSerialStatus(connected) {
     elements.serialStatus.classList.toggle('connected', connected);
+    elements.serialStatus.classList.remove('reconnecting');
     elements.serialText.textContent = connected ? 'Connected' : 'Disconnected';
     elements.connectBtn.disabled = connected;
     elements.disconnectBtn.disabled = !connected;
@@ -245,8 +470,6 @@ function updateAlarmHistory(history) {
 }
 
 function formatAlarm(alarm) {
-    // Alarm names (matching STcontrol terminology)
-    // "fim de curso" = end of travel / limit switch
     const alarmNames = {
         'vertical_limit': 'Vertical Limit',
         'tilt_limit_flat': 'Tilt Limit - Panel Flat (stow)',
@@ -357,19 +580,15 @@ async function stopAll() {
 
 async function moveForDuration(direction, durationMs) {
     try {
-        // Start movement
         await apiCall(`/tracker/move/${direction}/start`, 'POST');
         log(`Moving ${direction}...`);
 
-        // Wait for duration
         await new Promise(resolve => setTimeout(resolve, durationMs));
 
-        // Stop movement
         await apiCall(`/tracker/move/${direction}/stop`, 'POST');
         log(`Stopped ${direction}`);
     } catch (error) {
         log(`Move failed: ${error.message}`);
-        // Try to stop anyway
         try {
             await apiCall(`/tracker/move/${direction}/stop`, 'POST');
         } catch (e) {}
@@ -418,45 +637,66 @@ async function sendRaw() {
 }
 
 // =============================================================================
+// Ripple Effect
+// =============================================================================
+
+function addRipple(e) {
+    const btn = e.currentTarget;
+    const ripple = document.createElement('span');
+    ripple.classList.add('ripple');
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    ripple.style.width = ripple.style.height = size + 'px';
+    ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+    ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+    btn.appendChild(ripple);
+    ripple.addEventListener('animationend', () => ripple.remove());
+}
+
+// =============================================================================
 // Event Listeners
 // =============================================================================
 
 function setupEventListeners() {
-    // Connection
-    elements.refreshPortsBtn.addEventListener('click', refreshPorts);
-    elements.connectBtn.addEventListener('click', connect);
-    elements.disconnectBtn.addEventListener('click', disconnect);
+    // Connection (with loading spinners)
+    elements.refreshPortsBtn.addEventListener('click', () => withLoading(elements.refreshPortsBtn, refreshPorts));
+    elements.connectBtn.addEventListener('click', () => withLoading(elements.connectBtn, connect));
+    elements.disconnectBtn.addEventListener('click', () => withLoading(elements.disconnectBtn, disconnect));
 
-    // Mode
-    elements.modeManualBtn.addEventListener('click', () => setMode('manual'));
-    elements.modeAutoBtn.addEventListener('click', () => setMode('automatic'));
+    // Mode (with loading spinners)
+    elements.modeManualBtn.addEventListener('click', () => withLoading(elements.modeManualBtn, () => setMode('manual')));
+    elements.modeAutoBtn.addEventListener('click', () => withLoading(elements.modeAutoBtn, () => setMode('automatic')));
 
     // Movement - D-Pad buttons with click to move for fixed duration
     document.querySelectorAll('.dpad-btn[data-direction]').forEach(btn => {
         const direction = btn.dataset.direction;
 
         btn.addEventListener('click', async () => {
-            // Move for 500ms on each click
             await moveForDuration(direction, 500);
         });
     });
 
     // Stop button
-    elements.stopBtn.addEventListener('click', stopAll);
+    elements.stopBtn.addEventListener('click', () => withLoading(elements.stopBtn, stopAll));
 
-    // Alarms
-    elements.clearAlarmsBtn.addEventListener('click', clearAlarms);
+    // Alarms (with loading spinner)
+    elements.clearAlarmsBtn.addEventListener('click', () => withLoading(elements.clearAlarmsBtn, clearAlarms));
 
-    // Parameters
-    elements.setWindBtn.addEventListener('click', setMaxWind);
+    // Parameters (with loading spinner)
+    elements.setWindBtn.addEventListener('click', () => withLoading(elements.setWindBtn, setMaxWind));
 
     // Debug
     elements.debugPanel.querySelector('h2').addEventListener('click', () => {
         elements.debugPanel.classList.toggle('collapsed');
     });
-    elements.sendRawBtn.addEventListener('click', sendRaw);
+    elements.sendRawBtn.addEventListener('click', () => withLoading(elements.sendRawBtn, sendRaw));
     elements.rawHex.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendRaw();
+    });
+
+    // Ripple effect on all buttons
+    document.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', addRipple);
     });
 }
 
@@ -466,6 +706,11 @@ function setupEventListeners() {
 
 async function init() {
     log('Solar Tracker Control UI initialized');
+
+    // Initialize SVG gauges
+    initCompassTicks();
+    initAltitudeTicks();
+    initWindTicks();
 
     setupEventListeners();
 
