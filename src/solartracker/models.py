@@ -68,6 +68,16 @@ class TrackerLimits(BaseModel):
     min_altitude_sunset: Optional[float] = Field(None, description="Min altitude at sunset")
 
 
+class ObservedLimits(BaseModel):
+    """Observed physical limits of the tracker, tracked over time."""
+    horizontal_min: Optional[float] = Field(None, description="Minimum observed horizontal angle")
+    horizontal_max: Optional[float] = Field(None, description="Maximum observed horizontal angle")
+    vertical_min: Optional[float] = Field(None, description="Minimum observed vertical angle")
+    vertical_max: Optional[float] = Field(None, description="Maximum observed vertical angle")
+    first_seen: Optional[datetime] = Field(None, description="When tracking started")
+    last_updated: Optional[datetime] = Field(None, description="Last time a limit was updated")
+
+
 class TrackerStatus(BaseModel):
     """Full status of the solar tracker."""
     mode: OperatingMode = OperatingMode.MANUAL
@@ -78,6 +88,7 @@ class TrackerStatus(BaseModel):
     max_wind_threshold: Optional[int] = Field(None, description="Max wind threshold")
     alarms: List[str] = Field(default_factory=list, description="Current active alarms")
     alarm_history: List[AlarmEntry] = Field(default_factory=list, description="Alarm history log")
+    observed_limits: ObservedLimits = ObservedLimits()
     connection: ConnectionStatus = ConnectionStatus()
     utc_time: Optional[datetime] = None
     firmware_version: Optional[str] = Field(None, description="Firmware version string")

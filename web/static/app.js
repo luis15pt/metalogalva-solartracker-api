@@ -54,6 +54,14 @@ const elements = {
     alarmHistory: document.getElementById('alarm-history'),
     clearAlarmsBtn: document.getElementById('clear-alarms-btn'),
 
+    // Observed Limits
+    limitHMin: document.getElementById('limit-h-min'),
+    limitHMax: document.getElementById('limit-h-max'),
+    limitVMin: document.getElementById('limit-v-min'),
+    limitVMax: document.getElementById('limit-v-max'),
+    limitsSince: document.getElementById('limits-since'),
+    resetLimitsBtn: document.getElementById('reset-limits-btn'),
+
     // Parameters
     maxWindInput: document.getElementById('max-wind-input'),
     setWindBtn: document.getElementById('set-wind-btn'),
@@ -350,6 +358,142 @@ function updateWindGauge(speed, threshold) {
 }
 
 // =============================================================================
+// Observed Limits Markers
+// =============================================================================
+
+function updateCompassLimits(hMin, hMax) {
+    const group = document.getElementById('compass-limits');
+    if (!group) return;
+    group.innerHTML = '';
+
+    if (hMin === null && hMax === null) return;
+
+    const cx = 100, cy = 100, r1 = 75, r2 = 93;
+
+    function drawLimitLine(angle) {
+        const rad = (angle - 90) * Math.PI / 180;
+        const x1 = cx + r1 * Math.cos(rad);
+        const y1 = cy + r1 * Math.sin(rad);
+        const x2 = cx + r2 * Math.cos(rad);
+        const y2 = cy + r2 * Math.sin(rad);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x1);
+        line.setAttribute('y1', y1);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        line.setAttribute('class', 'limit-marker-line');
+        group.appendChild(line);
+    }
+
+    if (hMin !== null) drawLimitLine(hMin);
+    if (hMax !== null) drawLimitLine(hMax);
+
+    // Draw arc between limits
+    if (hMin !== null && hMax !== null) {
+        const rArc = 78;
+        const startRad = (hMin - 90) * Math.PI / 180;
+        const endRad = (hMax - 90) * Math.PI / 180;
+        const sx = cx + rArc * Math.cos(startRad);
+        const sy = cy + rArc * Math.sin(startRad);
+        const ex = cx + rArc * Math.cos(endRad);
+        const ey = cy + rArc * Math.sin(endRad);
+        let sweep = hMax - hMin;
+        if (sweep < 0) sweep += 360;
+        const largeArc = sweep > 180 ? 1 : 0;
+        const arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        arc.setAttribute('d', `M ${sx} ${sy} A ${rArc} ${rArc} 0 ${largeArc} 1 ${ex} ${ey}`);
+        arc.setAttribute('class', 'limit-marker-arc');
+        group.appendChild(arc);
+    }
+}
+
+function updateAltitudeLimits(vMin, vMax) {
+    const group = document.getElementById('altitude-limits');
+    if (!group) return;
+    group.innerHTML = '';
+
+    if (vMin === null && vMax === null) return;
+
+    const cx = 100, cy = 105, r = 85;
+
+    function drawLimitTick(alt) {
+        const clamped = Math.max(0, Math.min(90, alt));
+        const angle = 180 - (clamped * 180 / 90);
+        const rad = angle * Math.PI / 180;
+        const x1 = cx + (r - 8) * Math.cos(rad);
+        const y1 = cy - (r - 8) * Math.sin(rad);
+        const x2 = cx + (r + 2) * Math.cos(rad);
+        const y2 = cy - (r + 2) * Math.sin(rad);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x1);
+        line.setAttribute('y1', y1);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        line.setAttribute('class', 'limit-marker-line');
+        group.appendChild(line);
+    }
+
+    if (vMin !== null) drawLimitTick(vMin);
+    if (vMax !== null) drawLimitTick(vMax);
+
+    // Draw arc between limits
+    if (vMin !== null && vMax !== null) {
+        const rArc = 80;
+        const startAngle = 180 - (Math.max(0, Math.min(90, vMin)) * 180 / 90);
+        const endAngle = 180 - (Math.max(0, Math.min(90, vMax)) * 180 / 90);
+        const startRad = startAngle * Math.PI / 180;
+        const endRad = endAngle * Math.PI / 180;
+        const sx = cx + rArc * Math.cos(startRad);
+        const sy = cy - rArc * Math.sin(startRad);
+        const ex = cx + rArc * Math.cos(endRad);
+        const ey = cy - rArc * Math.sin(endRad);
+        const sweep = Math.abs(startAngle - endAngle);
+        const largeArc = sweep > 180 ? 1 : 0;
+        const arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        // Go from vMin (lower angle, right side) to vMax (higher angle, left side) counter-clockwise
+        arc.setAttribute('d', `M ${sx} ${sy} A ${rArc} ${rArc} 0 ${largeArc} 0 ${ex} ${ey}`);
+        arc.setAttribute('class', 'limit-marker-arc');
+        group.appendChild(arc);
+    }
+}
+
+function updateObservedLimitsUI(observedLimits) {
+    if (!observedLimits) return;
+
+    const fmt = (v) => v !== null && v !== undefined ? v.toFixed(1) : '--';
+
+    if (elements.limitHMin) elements.limitHMin.textContent = fmt(observedLimits.horizontal_min);
+    if (elements.limitHMax) elements.limitHMax.textContent = fmt(observedLimits.horizontal_max);
+    if (elements.limitVMin) elements.limitVMin.textContent = fmt(observedLimits.vertical_min);
+    if (elements.limitVMax) elements.limitVMax.textContent = fmt(observedLimits.vertical_max);
+
+    if (elements.limitsSince) {
+        if (observedLimits.first_seen) {
+            const dt = new Date(observedLimits.first_seen);
+            if (!isNaN(dt.getTime())) {
+                elements.limitsSince.textContent = dt.toLocaleDateString('en-GB', {
+                    day: '2-digit', month: '2-digit', year: '2-digit',
+                    hour: '2-digit', minute: '2-digit'
+                });
+            } else {
+                elements.limitsSince.textContent = '--';
+            }
+        } else {
+            elements.limitsSince.textContent = '--';
+        }
+    }
+
+    updateCompassLimits(
+        observedLimits.horizontal_min ?? null,
+        observedLimits.horizontal_max ?? null
+    );
+    updateAltitudeLimits(
+        observedLimits.vertical_min ?? null,
+        observedLimits.vertical_max ?? null
+    );
+}
+
+// =============================================================================
 // UI Update Functions
 // =============================================================================
 
@@ -416,6 +560,9 @@ function updateUI(status) {
         elements.maxWindInput.value = windThresh;
     }
     updateWindGauge(windVal, windThresh);
+
+    // Update observed limits
+    updateObservedLimitsUI(status.observed_limits);
 
     // Update alarms
     updateAlarms(status.alarms || []);
@@ -620,6 +767,15 @@ async function setMaxWind() {
     }
 }
 
+async function resetLimits() {
+    try {
+        const data = await apiCall('/tracker/limits/reset', 'POST');
+        log(data.message);
+    } catch (error) {
+        log(`Reset limits failed: ${error.message}`);
+    }
+}
+
 async function sendRaw() {
     const hex = elements.rawHex.value.replace(/\s/g, '');
 
@@ -681,6 +837,9 @@ function setupEventListeners() {
 
     // Alarms (with loading spinner)
     elements.clearAlarmsBtn.addEventListener('click', () => withLoading(elements.clearAlarmsBtn, clearAlarms));
+
+    // Observed Limits
+    elements.resetLimitsBtn.addEventListener('click', () => withLoading(elements.resetLimitsBtn, resetLimits));
 
     // Parameters (with loading spinner)
     elements.setWindBtn.addEventListener('click', () => withLoading(elements.setWindBtn, setMaxWind));

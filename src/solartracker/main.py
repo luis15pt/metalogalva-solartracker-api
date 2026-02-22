@@ -25,6 +25,7 @@ from .models import (
     OperatingMode,
     ConnectionStatus,
     AlarmEntry,
+    ObservedLimits,
 )
 from .serial_handler import serial_handler
 from .mqtt_handler import mqtt_handler
@@ -45,6 +46,66 @@ current_status = TrackerStatus()
 
 # Buffer for accumulating serial data
 receive_buffer = bytearray()
+
+# Observed limits persistence
+LIMITS_FILE = "/app/data/observed_limits.json"
+
+
+def load_observed_limits() -> ObservedLimits:
+    """Load observed limits from persistent storage."""
+    import json
+    import os
+    try:
+        if os.path.exists(LIMITS_FILE):
+            with open(LIMITS_FILE, "r") as f:
+                data = json.load(f)
+            logger.info(f"Loaded observed limits: {data}")
+            return ObservedLimits(**data)
+    except Exception as e:
+        logger.warning(f"Failed to load observed limits: {e}")
+    return ObservedLimits()
+
+
+def save_observed_limits(limits: ObservedLimits):
+    """Save observed limits to persistent storage."""
+    import json
+    import os
+    try:
+        os.makedirs(os.path.dirname(LIMITS_FILE), exist_ok=True)
+        with open(LIMITS_FILE, "w") as f:
+            json.dump(limits.model_dump(mode="json"), f, default=str)
+    except Exception as e:
+        logger.warning(f"Failed to save observed limits: {e}")
+
+
+def update_observed_limits(horizontal: float | None, vertical: float | None):
+    """Update observed min/max limits from a new position reading."""
+    from datetime import datetime
+    limits = current_status.observed_limits
+    changed = False
+
+    if horizontal is not None:
+        if limits.horizontal_min is None or horizontal < limits.horizontal_min:
+            limits.horizontal_min = horizontal
+            changed = True
+        if limits.horizontal_max is None or horizontal > limits.horizontal_max:
+            limits.horizontal_max = horizontal
+            changed = True
+
+    if vertical is not None:
+        if limits.vertical_min is None or vertical < limits.vertical_min:
+            limits.vertical_min = vertical
+            changed = True
+        if limits.vertical_max is None or vertical > limits.vertical_max:
+            limits.vertical_max = vertical
+            changed = True
+
+    if changed:
+        now = datetime.utcnow()
+        if limits.first_seen is None:
+            limits.first_seen = now
+        limits.last_updated = now
+        save_observed_limits(limits)
 
 
 async def broadcast_status():
@@ -132,6 +193,7 @@ async def on_serial_data(data: bytes):
                 pos = parsed["position"]
                 current_status.position.horizontal = pos.get("horizontal")
                 current_status.position.vertical = pos.get("vertical")
+                update_observed_limits(pos.get("horizontal"), pos.get("vertical"))
 
             if "sun_position" in parsed:
                 sun = parsed["sun_position"]
@@ -220,6 +282,9 @@ async def status_poll_loop():
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     logger.info("Starting Solar Tracker API...")
+
+    # Load persisted observed limits
+    current_status.observed_limits = load_observed_limits()
 
     # Set up serial handler callback
     serial_handler.set_data_callback(on_serial_data)
@@ -604,6 +669,23 @@ async def zero_panel():
         success=success,
         message="Panel position zeroed" if success else "Command failed",
     )
+
+
+@app.post("/tracker/limits/reset", response_model=CommandResponse)
+async def reset_observed_limits():
+    """Reset observed position limits and start tracking fresh."""
+    current_status.observed_limits = ObservedLimits()
+    save_observed_limits(current_status.observed_limits)
+    return CommandResponse(
+        success=True,
+        message="Observed limits reset",
+    )
+
+
+@app.get("/tracker/limits")
+async def get_observed_limits():
+    """Get current observed position limits."""
+    return current_status.observed_limits
 
 
 @app.post("/tracker/alarms/query", response_model=CommandResponse)

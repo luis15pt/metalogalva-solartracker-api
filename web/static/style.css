@@ -697,6 +697,51 @@ button.loading {
 
 .altitude-svg .center-dot { fill: var(--text-primary); }
 
+/* Observed Limits */
+.limits-grid {
+    display: flex;
+    gap: 15px;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.limits-item {
+    text-align: center;
+    min-width: 80px;
+}
+
+.limits-item label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.limits-item .value {
+    font-size: 0.95rem;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.btn-small {
+    padding: 6px 14px;
+    font-size: 0.8rem;
+}
+
+/* Limit markers on gauges */
+.limit-marker-line {
+    stroke: rgba(0, 200, 83, 0.6);
+    stroke-width: 2;
+    stroke-dasharray: 4 2;
+}
+
+.limit-marker-arc {
+    fill: none;
+    stroke: rgba(0, 200, 83, 0.15);
+    stroke-width: 8;
+}
+
 /* Wind Gauge */
 .wind-gauge-container {
     display: flex;

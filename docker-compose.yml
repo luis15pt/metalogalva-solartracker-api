@@ -16,6 +16,8 @@ services:
       - LOG_LEVEL=INFO
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
+    volumes:
+      - ./data:/app/data
     group_add:
       - "46"
     depends_on:

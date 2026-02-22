@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }}</title>
-    <link rel="stylesheet" href="/static/style.css?v=8">
+    <link rel="stylesheet" href="/static/style.css?v=9">
 </head>
 <body>
     <div class="container">
@@ -135,6 +135,7 @@
                                 <line x1="100" y1="100" x2="100" y2="35"/>
                                 <polygon points="96,40 104,40 100,28"/>
                             </g>
+                            <g id="compass-limits" class="limit-markers"></g>
                             <circle cx="100" cy="100" r="4" class="center-dot"/>
                         </svg>
                         <div class="gauge-legend">
@@ -151,6 +152,7 @@
                             <text x="10" y="118" class="tick-label">0&deg;</text>
                             <text x="100" y="12" class="tick-label" text-anchor="middle">90&deg;</text>
                             <text x="190" y="118" class="tick-label" text-anchor="end">0&deg;</text>
+                            <g id="altitude-limits" class="limit-markers"></g>
                             <line id="sun-alt-needle" x1="100" y1="105" x2="15" y2="105" class="needle-line sun-color"/>
                             <line id="panel-alt-needle" x1="100" y1="105" x2="15" y2="105" class="needle-line panel-color"/>
                             <circle cx="100" cy="105" r="4" class="center-dot"/>
@@ -159,6 +161,27 @@
                             <span class="legend-sun">&#9728; Alt: <span id="sun-altitude">--</span>&deg;</span>
                             <span class="legend-panel">&#9654; Tilt: <span id="pos-vertical">--</span>&deg;</span>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Observed Limits -->
+                <div class="section-divider"></div>
+                <h3>Observed Limits</h3>
+                <div class="limits-grid">
+                    <div class="limits-item">
+                        <label>Horizontal</label>
+                        <span class="value"><span id="limit-h-min">--</span>&deg; &ndash; <span id="limit-h-max">--</span>&deg;</span>
+                    </div>
+                    <div class="limits-item">
+                        <label>Vertical</label>
+                        <span class="value"><span id="limit-v-min">--</span>&deg; &ndash; <span id="limit-v-max">--</span>&deg;</span>
+                    </div>
+                    <div class="limits-item">
+                        <label>Tracking since</label>
+                        <span class="value" id="limits-since">--</span>
+                    </div>
+                    <div class="limits-item">
+                        <button id="reset-limits-btn" class="btn-warning btn-small">Reset Limits</button>
                     </div>
                 </div>
 
@@ -207,6 +230,6 @@
         </footer>
     </div>
 
-    <script src="/static/app.js?v=9"></script>
+    <script src="/static/app.js?v=10"></script>
 </body>
 </html>
