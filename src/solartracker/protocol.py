@@ -25,9 +25,9 @@ class MovementCommand(IntEnum):
 
 
 class ModeCommand(IntEnum):
-    """Mode command codes (captured from STcontrol)."""
-    MANUAL = 0x10  # Switch to manual mode
-    AUTO = 0x11    # Switch to automatic mode
+    """Mode command codes (verified by observing tracker behavior)."""
+    AUTO = 0x10    # Switch to automatic tracking mode
+    MANUAL = 0x11  # Switch to manual mode
 
 
 class CommandType(IntEnum):
@@ -100,7 +100,7 @@ class ResponseOffsets:
     │ Offset │ Length │ Type        │ Description                    │
     ├────────┼────────┼─────────────┼────────────────────────────────┤
     │ 0-6    │ 7      │ bytes       │ Header: 81 00 01 82 00 7c 50   │
-    │ 7      │ 1      │ byte        │ Mode: 0x00=AUTO, 0x01=MANUAL   │
+    │ 7      │ 1      │ byte        │ Mode: 0x01=AUTO, 0x00=MANUAL   │
     │ 8      │ 1      │ uint8       │ Day (1-31)                     │
     │ 9      │ 1      │ uint8       │ Month (1-12)                   │
     │ 10     │ 1      │ uint8       │ Year (offset from 2000)        │
@@ -125,7 +125,7 @@ class ResponseOffsets:
     HEADER_START = 0
     HEADER_LENGTH = 7
 
-    # Mode byte (byte 7): 0x00 = AUTO tracking, 0x01 = MANUAL
+    # Mode byte (byte 7): 0x01 = AUTO tracking, 0x00 = MANUAL
     MODE_BYTE = 7
 
     # Date/Time (bytes 8-13)
@@ -276,7 +276,7 @@ class SolarTrackerProtocol:
             ProtocolConstants.CMD_GROUP, # 0x82
             ProtocolConstants.BYTE4,     # 0x00
             PacketType.ALARM,            # 0x01 (same type as alarm commands)
-            mode_cmd,                    # 0x10=manual, 0x11=auto
+            mode_cmd,                    # 0x10=auto, 0x11=manual
             ProtocolConstants.FOOTER,    # 0x83
         ])
         checksum = cls.calculate_checksum(packet)
@@ -813,9 +813,10 @@ class SolarTrackerProtocol:
                     }
 
                 # Parse mode from byte [7] (primary, reliable indicator)
-                # 0x00 = AUTO tracking mode, 0x01 = MANUAL mode
+                # 0x01 = AUTO tracking mode, 0x00 = MANUAL mode
+                # Verified: when byte[7]=0x01 the tracker actively tracks the sun
                 mode_byte = data[OFF.MODE_BYTE]
-                is_auto_mode = (mode_byte == 0x00)
+                is_auto_mode = (mode_byte == 0x01)
 
                 # Also read status flags at byte [20] for additional state info
                 status_flags = data[OFF.STATUS_FLAGS] if len(data) > OFF.STATUS_FLAGS else 0
