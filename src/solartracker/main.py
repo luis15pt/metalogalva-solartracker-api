@@ -214,14 +214,13 @@ async def on_serial_data(data: bytes):
             if "version" in parsed:
                 current_status.firmware_version = parsed["version"]
 
-            # Update mode based on status flags (byte 20, bit 0)
-            # Discovered: bit 0 = 1 means AUTO mode, bit 0 = 0 means MANUAL mode
+            # Update mode based on status flags
             if "status_flags" in parsed:
                 flags = parsed["status_flags"]
-                if flags.get("is_auto_mode"):
-                    current_status.mode = OperatingMode.AUTOMATIC
-                else:
-                    current_status.mode = OperatingMode.MANUAL
+                new_mode = OperatingMode.AUTOMATIC if flags.get("is_auto_mode") else OperatingMode.MANUAL
+                if new_mode != current_status.mode:
+                    logger.warning(f"Mode transition: {current_status.mode.value} → {new_mode.value} (mode_byte={flags.get('mode_byte')})")
+                current_status.mode = new_mode
 
             if "alarms" in parsed and "list" in parsed["alarms"]:
                 new_alarms = parsed["alarms"]["list"]
@@ -515,14 +514,15 @@ async def set_mode(mode: OperatingMode):
         raise HTTPException(status_code=400, detail="Not connected")
 
     automatic = mode == OperatingMode.AUTOMATIC
+    logger.info(f"Mode endpoint called: {mode.value} (automatic={automatic})")
     success = await serial_handler.set_mode(automatic)
 
-    if success:
-        current_status.mode = mode
+    # Don't set current_status.mode here — let tracker confirm via next status response
+    # (parsed in on_serial_data → status_flags → is_auto_mode)
 
     return CommandResponse(
         success=success,
-        message=f"Mode set to {mode.value}" if success else "Command failed",
+        message=f"Mode command sent: {mode.value}" if success else "Command failed",
     )
 
 

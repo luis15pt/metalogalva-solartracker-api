@@ -163,7 +163,7 @@ class SerialHandler:
                 self._serial.rts = False
 
                 self._last_tx = datetime.now()
-                logger.debug(f"TX: {data.hex()}")
+                logger.info(f"TX [{len(data)} bytes]: {data.hex()}")
                 return True
         except serial.SerialException as e:
             logger.error(f"Send failed: {e}")
@@ -197,7 +197,7 @@ class SerialHandler:
 
     async def set_mode(self, automatic: bool) -> bool:
         """Set operating mode."""
-        # TODO: Not yet reverse-engineered
+        logger.info(f"set_mode called: automatic={automatic} → sending {'0x10 (AUTO)' if automatic else '0x11 (MANUAL)'}")
         packet = SolarTrackerProtocol.set_auto_mode() if automatic else SolarTrackerProtocol.set_manual_mode()
         if packet is None:
             logger.warning("Set mode command not yet implemented in protocol")
