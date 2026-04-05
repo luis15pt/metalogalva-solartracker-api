@@ -123,7 +123,10 @@ async def broadcast_status():
             disconnected.append(ws)
 
     for ws in disconnected:
-        websocket_connections.remove(ws)
+        try:
+            websocket_connections.remove(ws)
+        except ValueError:
+            pass  # Already removed by websocket_endpoint finally block
 
 
 async def on_serial_data(data: bytes):

@@ -111,7 +111,7 @@ class SerialHandler:
             self._read_task.cancel()
             try:
                 await self._read_task
-            except asyncio.CancelledError:
+            except (asyncio.CancelledError, Exception):
                 pass
             self._read_task = None
 
@@ -326,6 +326,9 @@ class SerialHandler:
             except asyncio.CancelledError:
                 logger.info("Serial read loop cancelled")
                 break
+            except Exception as e:
+                logger.error(f"Error in read loop callback: {e}")
+                # Don't break — keep reading serial data
 
         logger.info("Serial read loop ended")
 
