@@ -100,7 +100,7 @@ class ResponseOffsets:
     │ Offset │ Length │ Type        │ Description                    │
     ├────────┼────────┼─────────────┼────────────────────────────────┤
     │ 0-6    │ 7      │ bytes       │ Header: 81 00 01 82 00 7c 50   │
-    │ 7      │ 1      │ byte        │ Mode: 0x01=AUTO, 0x00=MANUAL   │
+    │ 7      │ 1      │ byte        │ Mode: 0x00=AUTO, 0x01=MANUAL   │
     │ 8      │ 1      │ uint8       │ Day (1-31)                     │
     │ 9      │ 1      │ uint8       │ Month (1-12)                   │
     │ 10     │ 1      │ uint8       │ Year (offset from 2000)        │
@@ -125,7 +125,7 @@ class ResponseOffsets:
     HEADER_START = 0
     HEADER_LENGTH = 7
 
-    # Mode byte (byte 7): 0x01 = AUTO tracking, 0x00 = MANUAL
+    # Mode byte (byte 7): 0x00 = AUTO tracking (default), 0x01 = MANUAL
     MODE_BYTE = 7
 
     # Date/Time (bytes 8-13)
@@ -812,11 +812,11 @@ class SolarTrackerProtocol:
                         "vertical": round(panel_vertical, 2) if 0 <= panel_vertical <= 90 else None,
                     }
 
-                # Parse mode from byte [7] (primary, reliable indicator)
-                # 0x01 = AUTO tracking mode, 0x00 = MANUAL mode
-                # Verified: when byte[7]=0x01 the tracker actively tracks the sun
+                # Parse mode from byte [7]
+                # 0x00 = AUTO (default tracking mode), 0x01 = MANUAL (override)
+                # In practice, byte 7 is 0x00 when tracker is auto-tracking the sun
                 mode_byte = data[OFF.MODE_BYTE]
-                is_auto_mode = (mode_byte == 0x01)
+                is_auto_mode = (mode_byte != 0x01)
 
                 # Also read status flags at byte [20] for additional state info
                 status_flags = data[OFF.STATUS_FLAGS] if len(data) > OFF.STATUS_FLAGS else 0
