@@ -308,9 +308,9 @@ async def on_serial_data(data: bytes):
                         # New alarm detected - add to history
                         alarm_names = {
                             'vertical_limit': 'Vertical Limit',
-                            'tilt_limit_flat': 'Tilt Limit - Panel Flat (stow position)',
+                            'unknown_alarm_1': 'Unknown Alarm (bit 1)',
                             'west_limit': 'West Limit',
-                            'wind_speed': 'Wind Speed Exceeded',
+                            'tilt_limit_flat': 'Tilt Limit - Panel Flat (stow position)',
                             'actuator_current': 'Actuator Current',
                             'rotation_current': 'Rotation Current',
                             'unknown_alarm_6': 'Unknown Alarm (bit 6)',

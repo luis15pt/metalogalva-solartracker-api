@@ -838,12 +838,12 @@ class SolarTrackerProtocol:
                     # "fim de curso" = end of travel / limit switch
                     if alarm_byte & 0x01:  # Bit 0 - Vertical limit
                         alarm_list.append("vertical_limit")
-                    if alarm_byte & 0x02:  # Bit 1 - Tilt limit reached, panel is flat (fim de curso horizontal)
-                        alarm_list.append("tilt_limit_flat")
+                    if alarm_byte & 0x02:  # Bit 1 - Unknown (previously thought tilt limit)
+                        alarm_list.append("unknown_alarm_1")
                     if alarm_byte & 0x04:  # Bit 2 - West limit
                         alarm_list.append("west_limit")
-                    if alarm_byte & 0x08:  # Bit 3 - Wind speed exceeded
-                        alarm_list.append("wind_speed")
+                    if alarm_byte & 0x08:  # Bit 3 - Tilt limit / panel flat (stow position)
+                        alarm_list.append("tilt_limit_flat")
                     if alarm_byte & 0x10:  # Bit 4 - Actuator motor current
                         alarm_list.append("actuator_current")
                     if alarm_byte & 0x20:  # Bit 5 - Rotation motor current
