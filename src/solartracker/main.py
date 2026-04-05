@@ -47,6 +47,16 @@ current_status = TrackerStatus()
 # Buffer for accumulating serial data
 receive_buffer = bytearray()
 
+# State change tracking for diagnostic logging
+_last_logged_state = {
+    "alarm_code": None,
+    "status_flags": None,
+    "mode_byte": None,
+    "is_auto_mode": None,
+    "vertical": None,
+    "raw_bytes_34_37": None,
+}
+
 # Observed limits persistence
 LIMITS_FILE = "/app/data/observed_limits.json"
 
@@ -129,6 +139,53 @@ async def broadcast_status():
             pass  # Already removed by websocket_endpoint finally block
 
 
+def _log_state_changes(parsed: dict, packet: bytes):
+    """Log when alarm, mode, status flags, or position state changes."""
+    global _last_logged_state
+
+    flags = parsed.get("status_flags", {})
+    alarms = parsed.get("alarms", {})
+    position = parsed.get("position", {})
+
+    new_alarm_code = alarms.get("code")
+    new_status_flags = flags.get("raw")
+    new_mode_byte = flags.get("mode_byte")
+    new_is_auto = flags.get("is_auto_mode")
+    new_vertical = position.get("vertical")
+
+    # Raw bytes around the alarm region for analysis
+    raw_34_37 = packet[34:38].hex() if len(packet) >= 38 else None
+
+    changed = []
+    if new_alarm_code != _last_logged_state["alarm_code"]:
+        changed.append(f"alarm: 0x{_last_logged_state['alarm_code'] or 0:02x}->0x{new_alarm_code or 0:02x} ({alarms.get('list', [])})")
+    if new_status_flags != _last_logged_state["status_flags"]:
+        changed.append(f"status_flags: 0x{_last_logged_state['status_flags'] or 0:02x}->0x{new_status_flags or 0:02x}")
+    if new_is_auto != _last_logged_state["is_auto_mode"]:
+        changed.append(f"mode: {'auto' if _last_logged_state['is_auto_mode'] else 'manual'}->{'auto' if new_is_auto else 'manual'}")
+    if new_vertical != _last_logged_state["vertical"]:
+        old_v = _last_logged_state["vertical"]
+        changed.append(f"vertical: {old_v}->{new_vertical}")
+    if raw_34_37 != _last_logged_state["raw_bytes_34_37"]:
+        changed.append(f"bytes[34:38]: {_last_logged_state['raw_bytes_34_37']}->{raw_34_37}")
+
+    if changed:
+        sun = parsed.get("sun_position", {})
+        logger.info(
+            f"STATE CHANGE: {', '.join(changed)} | "
+            f"pos=({position.get('horizontal')}, {new_vertical}) "
+            f"sun=({sun.get('azimuth')}, {sun.get('altitude')}) "
+            f"raw[34:38]={raw_34_37}"
+        )
+
+    _last_logged_state["alarm_code"] = new_alarm_code
+    _last_logged_state["status_flags"] = new_status_flags
+    _last_logged_state["mode_byte"] = new_mode_byte
+    _last_logged_state["is_auto_mode"] = new_is_auto
+    _last_logged_state["vertical"] = new_vertical
+    _last_logged_state["raw_bytes_34_37"] = raw_34_37
+
+
 async def on_serial_data(data: bytes):
     """Handle data received from serial port."""
     global current_status, receive_buffer
@@ -189,7 +246,10 @@ async def on_serial_data(data: bytes):
 
         parsed = SolarTrackerProtocol.parse_response(packet)
         if parsed:
-            logger.info(f"Parsed response: {parsed}")
+            logger.debug(f"Parsed response: {parsed}")
+
+            # Diagnostic logging: log on state changes only
+            _log_state_changes(parsed, packet)
 
             # Update current_status with parsed data
             if "position" in parsed:

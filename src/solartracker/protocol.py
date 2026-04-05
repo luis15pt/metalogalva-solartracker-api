@@ -149,7 +149,7 @@ class ResponseOffsets:
     STATUS_FLAGS = 20
 
     # Alarms (corrected - byte 36, confirmed with stowed panel showing horizontal_limit)
-    ALARM_BYTE = 36        # Bitmask for active alarms
+    ALARM_BYTE = 37        # Bitmask for active alarms
 
     # Minimum packet sizes
     MIN_PACKET_SIZE = 38
