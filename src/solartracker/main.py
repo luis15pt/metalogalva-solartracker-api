@@ -38,6 +38,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# File logging for persistent state change logs
+import os
+from logging.handlers import RotatingFileHandler
+_log_dir = "/app/data"
+os.makedirs(_log_dir, exist_ok=True)
+_file_handler = RotatingFileHandler(
+    os.path.join(_log_dir, "solartracker.log"),
+    maxBytes=5 * 1024 * 1024,  # 5MB per file
+    backupCount=5,              # Keep 5 rotated files (25MB total)
+)
+_file_handler.setLevel(logging.INFO)
+_file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+logger.addHandler(_file_handler)
+
 # WebSocket connections for live updates
 websocket_connections: List[WebSocket] = []
 
