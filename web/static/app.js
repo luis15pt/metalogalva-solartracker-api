@@ -225,6 +225,40 @@ function initAltitudeTicks() {
     }
 }
 
+function initAltitudeTicksBelow() {
+    const ticksGroup = document.getElementById('altitude-ticks-below');
+    if (!ticksGroup) return;
+    const cx = 100, cy = 105, r = 85;
+    for (let alt = -15; alt >= -45; alt -= 15) {
+        const angle = 180 - (alt * 180 / 90);
+        const rad = angle * Math.PI / 180;
+        const x1 = cx + (r - 5) * Math.cos(rad);
+        const y1 = cy - (r - 5) * Math.sin(rad);
+        const x2 = cx + (r + 3) * Math.cos(rad);
+        const y2 = cy - (r + 3) * Math.sin(rad);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x1);
+        line.setAttribute('y1', y1);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        line.setAttribute('stroke', 'rgba(160,160,160,0.4)');
+        line.setAttribute('stroke-width', '1');
+        ticksGroup.appendChild(line);
+
+        const lx = cx + (r + 14) * Math.cos(rad);
+        const ly = cy - (r + 14) * Math.sin(rad);
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', lx);
+        text.setAttribute('y', ly);
+        text.setAttribute('fill', 'rgba(160,160,160,0.5)');
+        text.setAttribute('font-size', '7');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'central');
+        text.textContent = alt + '\u00B0';
+        ticksGroup.appendChild(text);
+    }
+}
+
 function initWindTicks() {
     const ticksGroup = document.getElementById('wind-ticks');
     if (!ticksGroup) return;
@@ -275,7 +309,15 @@ function updateCompass(sunAzimuth, panelAzimuth) {
 function updateAltitudeGauge(sunAltitude, panelVertical) {
     const cx = 100, cy = 105, r = 80;
 
-    function altToPoint(alt) {
+    function sunAltToPoint(alt) {
+        if (alt === null || alt === undefined) return null;
+        const clamped = Math.max(-45, Math.min(90, alt));
+        const angle = 180 - (clamped * 180 / 90);
+        const rad = angle * Math.PI / 180;
+        return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
+    }
+
+    function panelAltToPoint(alt) {
         if (alt === null || alt === undefined) return null;
         const clamped = Math.max(0, Math.min(90, alt));
         const angle = 180 - (clamped * 180 / 90);
@@ -284,18 +326,27 @@ function updateAltitudeGauge(sunAltitude, panelVertical) {
     }
 
     const sunNeedle = document.getElementById('sun-alt-needle');
+    const sunDot = document.getElementById('sun-alt-dot');
+    const sunNeedleGroup = document.getElementById('sun-alt-needle-group');
     const panelNeedle = document.getElementById('panel-alt-needle');
 
     if (sunNeedle && sunAltitude !== null) {
-        const pt = altToPoint(sunAltitude);
+        const pt = sunAltToPoint(sunAltitude);
         if (pt) {
             sunNeedle.setAttribute('x2', pt.x);
             sunNeedle.setAttribute('y2', pt.y);
+            if (sunDot) {
+                sunDot.setAttribute('cx', pt.x);
+                sunDot.setAttribute('cy', pt.y);
+            }
+            if (sunNeedleGroup) {
+                sunNeedleGroup.classList.toggle('below-horizon', sunAltitude < 0);
+            }
         }
     }
 
     if (panelNeedle && panelVertical !== null) {
-        const pt = altToPoint(panelVertical);
+        const pt = panelAltToPoint(panelVertical);
         if (pt) {
             panelNeedle.setAttribute('x2', pt.x);
             panelNeedle.setAttribute('y2', pt.y);
@@ -869,6 +920,7 @@ async function init() {
     // Initialize SVG gauges
     initCompassTicks();
     initAltitudeTicks();
+    initAltitudeTicksBelow();
     initWindTicks();
 
     setupEventListeners();

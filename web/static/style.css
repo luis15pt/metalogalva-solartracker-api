@@ -697,6 +697,34 @@ button.loading {
 
 .altitude-svg .center-dot { fill: var(--text-primary); }
 
+.altitude-svg .arc-bg-below {
+    fill: none;
+    stroke: rgba(15, 52, 96, 0.3);
+    stroke-width: 8;
+    stroke-linecap: round;
+    stroke-dasharray: 6 4;
+}
+
+.altitude-svg .horizon-line {
+    stroke: rgba(160, 160, 160, 0.3);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+}
+
+.altitude-svg .sun-alt-dot {
+    fill: #ffc107;
+    transition: all 0.5s ease-out;
+}
+
+#sun-alt-needle-group.below-horizon .needle-line {
+    opacity: 0.5;
+    stroke-dasharray: 6 3;
+}
+
+#sun-alt-needle-group.below-horizon .sun-alt-dot {
+    opacity: 0.5;
+}
+
 /* Observed Limits */
 .limits-grid {
     display: flex;
