@@ -2,39 +2,170 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
-    <link rel="stylesheet" href="/static/style.css?v=9">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Solar Tracker Control</title>
+    <link rel="stylesheet" href="/static/style.css?v=11">
 </head>
 <body>
     <div class="container">
+        <!-- Header -->
         <header>
-            <h1>Solar Tracker Control</h1>
-            <div class="status-bar">
-                <span class="status-indicator" id="serial-status">
-                    <span class="dot"></span>
-                    Serial: <span id="serial-text">Disconnected</span>
-                </span>
-                <span class="status-indicator" id="ws-status">
-                    <span class="dot"></span>
-                    WebSocket: <span id="ws-text">Disconnected</span>
-                </span>
+            <h1>Solar Tracker</h1>
+            <div class="status-badges">
+                <span class="badge" id="serial-status"><span class="dot"></span><span id="serial-text">Serial</span></span>
+                <span class="badge" id="ws-status"><span class="dot"></span><span id="ws-text">WS</span></span>
+                <span class="badge badge-info" id="last-update-badge">--</span>
             </div>
         </header>
 
-        <main>
-            <!-- Connection & Alarms Panel -->
-            <section class="panel" id="connection-panel">
+        <!-- Alarms Banner (only visible when active) -->
+        <div class="alarm-banner" id="alarm-banner" style="display:none">
+            <div class="alarm-banner-content">
+                <span class="alarm-icon">&#9888;</span>
+                <ul class="alarm-list" id="alarm-list"></ul>
+                <button id="clear-alarms-btn" class="btn btn-sm btn-warning">Clear</button>
+            </div>
+        </div>
+
+        <!-- Position Gauges -->
+        <section class="card">
+            <div class="card-header">
+                <h2>Position</h2>
+                <div class="tracker-info">
+                    <span id="tracker-date">--/--/----</span>
+                    <span id="tracker-time">--:--:--</span>
+                    <button id="sync-clock-btn" class="btn btn-sm btn-ghost" title="Sync tracker clock">&#8635;</button>
+                </div>
+            </div>
+            <div class="gauge-row">
+                <!-- Compass -->
+                <div class="gauge-container">
+                    <svg id="compass-gauge" viewBox="0 0 200 200" class="compass-svg">
+                        <circle cx="100" cy="100" r="95" class="gauge-bg"/>
+                        <g id="compass-ticks"></g>
+                        <text x="100" y="22" class="cardinal">N</text>
+                        <text x="100" y="188" class="cardinal">S</text>
+                        <text x="12" y="105" class="cardinal">W</text>
+                        <text x="188" y="105" class="cardinal">E</text>
+                        <g id="sun-needle" class="needle sun-needle">
+                            <line x1="100" y1="100" x2="100" y2="30"/>
+                            <circle cx="100" cy="30" r="6" class="sun-dot"/>
+                        </g>
+                        <g id="panel-needle" class="needle panel-needle">
+                            <line x1="100" y1="100" x2="100" y2="35"/>
+                            <polygon points="96,40 104,40 100,28"/>
+                        </g>
+                        <g id="compass-limits" class="limit-markers"></g>
+                        <circle cx="100" cy="100" r="4" class="center-dot"/>
+                    </svg>
+                    <div class="gauge-legend">
+                        <span class="legend-sun">&#9728; <span id="sun-azimuth">--</span>&deg;</span>
+                        <span class="legend-panel">&#9654; <span id="pos-horizontal">--</span>&deg;</span>
+                    </div>
+                </div>
+                <!-- Altitude -->
+                <div class="gauge-container">
+                    <svg id="altitude-gauge" viewBox="0 0 200 200" class="altitude-svg">
+                        <path d="M 15 105 A 85 85 0 0 1 185 105" class="arc-bg"/>
+                        <path d="M 15 105 A 85 85 0 0 0 100 190" class="arc-bg-below"/>
+                        <line x1="12" y1="105" x2="188" y2="105" class="horizon-line"/>
+                        <g id="altitude-ticks"></g>
+                        <g id="altitude-ticks-below"></g>
+                        <text x="10" y="100" class="tick-label">0&deg;</text>
+                        <text x="100" y="12" class="tick-label" text-anchor="middle">90&deg;</text>
+                        <text x="190" y="100" class="tick-label" text-anchor="end">0&deg;</text>
+                        <g id="altitude-limits" class="limit-markers"></g>
+                        <g id="sun-alt-needle-group">
+                            <line id="sun-alt-needle" x1="100" y1="105" x2="15" y2="105" class="needle-line sun-color"/>
+                            <circle id="sun-alt-dot" cx="15" cy="105" r="5" class="sun-alt-dot"/>
+                        </g>
+                        <line id="panel-alt-needle" x1="100" y1="105" x2="15" y2="105" class="needle-line panel-color"/>
+                        <circle cx="100" cy="105" r="4" class="center-dot"/>
+                    </svg>
+                    <div class="gauge-legend">
+                        <span class="legend-sun">&#9728; <span id="sun-altitude">--</span>&deg;</span>
+                        <span class="legend-panel">&#9654; <span id="pos-vertical">--</span>&deg;</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Controls -->
+        <section class="card">
+            <div class="card-header">
+                <h2>Control</h2>
+                <div class="mode-toggle">
+                    <button id="mode-manual-btn" class="btn btn-mode">Manual</button>
+                    <button id="mode-auto-btn" class="btn btn-mode">Auto</button>
+                </div>
+            </div>
+
+            <div class="controls-row">
+                <!-- D-Pad -->
+                <div class="dpad">
+                    <button class="dpad-btn up" data-direction="up">&#9650;</button>
+                    <button class="dpad-btn left" data-direction="left">&#9664;</button>
+                    <button class="dpad-btn center" id="stop-btn">STOP</button>
+                    <button class="dpad-btn right" data-direction="right">&#9654;</button>
+                    <button class="dpad-btn down" data-direction="down">&#9660;</button>
+                </div>
+                <!-- Preset Buttons -->
+                <div class="preset-buttons">
+                    <button id="home-btn" class="btn btn-preset">&#8962; HOME</button>
+                    <button id="stow-btn" class="btn btn-preset">&#9660; STOW</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Info (collapsible) -->
+        <section class="card collapsible" id="info-panel">
+            <div class="card-header clickable" data-toggle="info-panel">
+                <h2>Info</h2>
+                <span class="chevron">&#9660;</span>
+            </div>
+            <div class="card-body">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>Firmware</label>
+                        <span id="firmware-version">--</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Horizontal Range</label>
+                        <span><span id="limit-h-min">--</span>&deg; &ndash; <span id="limit-h-max">--</span>&deg;</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Vertical Range</label>
+                        <span><span id="limit-v-min">--</span>&deg; &ndash; <span id="limit-v-max">--</span>&deg;</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Tracking Since</label>
+                        <span id="limits-since">--</span>
+                    </div>
+                </div>
+                <div class="info-actions">
+                    <button id="reset-limits-btn" class="btn btn-sm btn-ghost">Reset Limits</button>
+                </div>
+
+                <!-- Alarm History -->
+                <h3>Alarm History</h3>
+                <ul class="alarm-history" id="alarm-history">
+                    <li class="no-history">No alarm history</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Connection (collapsible, collapsed by default when connected) -->
+        <section class="card collapsible collapsed" id="connection-panel">
+            <div class="card-header clickable" data-toggle="connection-panel">
                 <h2>Connection</h2>
+                <span class="chevron">&#9660;</span>
+            </div>
+            <div class="card-body">
                 <div class="form-row">
-                    <label for="port-select">Port:</label>
-                    <select id="port-select">
-                        <option value="">Select port...</option>
-                    </select>
-                    <button id="refresh-ports-btn" class="btn-secondary">Refresh</button>
+                    <select id="port-select"><option value="">Select port...</option></select>
+                    <button id="refresh-ports-btn" class="btn btn-sm btn-ghost">Refresh</button>
                 </div>
                 <div class="form-row">
-                    <label for="baudrate-select">Baud Rate:</label>
                     <select id="baudrate-select">
                         <option value="9600" selected>9600</option>
                         <option value="19200">19200</option>
@@ -43,208 +174,35 @@
                         <option value="115200">115200</option>
                     </select>
                 </div>
-                <div class="button-row">
-                    <button id="connect-btn" class="btn-primary">&#9654; Connect</button>
-                    <button id="disconnect-btn" class="btn-danger" disabled>&#9632; Disconnect</button>
+                <div class="form-row">
+                    <button id="connect-btn" class="btn btn-success">Connect</button>
+                    <button id="disconnect-btn" class="btn btn-danger" disabled>Disconnect</button>
                 </div>
+            </div>
+        </section>
 
-                <!-- Alarms Section -->
-                <div class="alarms-section">
-                    <h3>Active Alarms</h3>
-                    <div class="alarm-status" id="alarm-status">
-                        <span class="no-alarms">No active alarms</span>
-                    </div>
-                    <ul class="alarm-list" id="alarm-list"></ul>
-                    <button id="clear-alarms-btn" class="btn-warning">Clear Alarms</button>
-
-                    <!-- Alarm History -->
-                    <h3 class="mt-10">Alarm History</h3>
-                    <ul class="alarm-history" id="alarm-history">
-                        <li class="no-history">No alarm history</li>
-                    </ul>
+        <!-- Debug (collapsible, collapsed) -->
+        <section class="card collapsible collapsed" id="debug-panel">
+            <div class="card-header clickable" data-toggle="debug-panel">
+                <h2>Debug</h2>
+                <span class="chevron">&#9660;</span>
+            </div>
+            <div class="card-body">
+                <div class="form-row">
+                    <input type="text" id="raw-hex" placeholder="Hex data (e.g. 01020304)">
+                    <button id="send-raw-btn" class="btn btn-sm btn-ghost">Send</button>
                 </div>
-            </section>
+                <pre id="debug-log"></pre>
+            </div>
+        </section>
 
-            <!-- Control Panel (Mode + Movement) -->
-            <section class="panel" id="control-panel">
-                <h2>Control</h2>
-                <div class="mode-buttons">
-                    <button id="mode-manual-btn" class="btn-mode">&#9995; Manual</button>
-                    <button id="mode-auto-btn" class="btn-mode">&#9728; Automatic</button>
-                </div>
-                <div class="dpad-container">
-                    <div class="dpad">
-                        <button class="dpad-btn up" data-direction="up">
-                            <span class="arrow">&#9650;</span>
-                        </button>
-                        <button class="dpad-btn left" data-direction="left">
-                            <span class="arrow">&#9664;</span>
-                        </button>
-                        <button class="dpad-btn center" id="stop-btn">
-                            STOP
-                        </button>
-                        <button class="dpad-btn right" data-direction="right">
-                            <span class="arrow">&#9654;</span>
-                        </button>
-                        <button class="dpad-btn down" data-direction="down">
-                            <span class="arrow">&#9660;</span>
-                        </button>
-                    </div>
-                </div>
-                <p class="hint">Click buttons to move (500ms per click)</p>
-            </section>
-
-            <!-- Status Panel (Combined: Status + Position + Parameters) -->
-            <section class="panel" id="status-panel">
-                <h2>Tracker Status</h2>
-
-                <!-- Date/Time/Firmware Row -->
-                <div class="status-grid">
-                    <div class="status-item">
-                        <label>Date</label>
-                        <span class="value" id="tracker-date">--/--/----</span>
-                    </div>
-                    <div class="status-item">
-                        <label>Time</label>
-                        <span class="value" id="tracker-time">--:--:--</span>
-                    </div>
-                    <div class="status-item">
-                        <label>Firmware</label>
-                        <span class="value" id="firmware-version">--</span>
-                    </div>
-                </div>
-
-                <!-- Position Gauges -->
-                <div class="section-divider"></div>
-                <h3>Position</h3>
-                <div class="gauge-row">
-                    <!-- Compass Gauge: Sun Azimuth + Panel Horizontal -->
-                    <div class="gauge-container">
-                        <svg id="compass-gauge" viewBox="0 0 200 200" class="compass-svg">
-                            <circle cx="100" cy="100" r="95" class="gauge-bg"/>
-                            <g id="compass-ticks"></g>
-                            <text x="100" y="22" class="cardinal">N</text>
-                            <text x="100" y="188" class="cardinal">S</text>
-                            <text x="12" y="105" class="cardinal">W</text>
-                            <text x="188" y="105" class="cardinal">E</text>
-                            <g id="sun-needle" class="needle sun-needle">
-                                <line x1="100" y1="100" x2="100" y2="30"/>
-                                <circle cx="100" cy="30" r="6" class="sun-dot"/>
-                            </g>
-                            <g id="panel-needle" class="needle panel-needle">
-                                <line x1="100" y1="100" x2="100" y2="35"/>
-                                <polygon points="96,40 104,40 100,28"/>
-                            </g>
-                            <g id="compass-limits" class="limit-markers"></g>
-                            <circle cx="100" cy="100" r="4" class="center-dot"/>
-                        </svg>
-                        <div class="gauge-legend">
-                            <span class="legend-sun">&#9728; Sun: <span id="sun-azimuth">--</span>&deg;</span>
-                            <span class="legend-panel">&#9654; Panel: <span id="pos-horizontal">--</span>&deg;</span>
-                        </div>
-                    </div>
-
-                    <!-- Altitude Gauge: Sun Altitude + Panel Tilt -->
-                    <div class="gauge-container">
-                        <svg id="altitude-gauge" viewBox="0 0 200 200" class="altitude-svg">
-                            <!-- Main 0-90 arc (above horizon) -->
-                            <path d="M 15 105 A 85 85 0 0 1 185 105" class="arc-bg"/>
-                            <!-- Below-horizon arc (negative altitudes) -->
-                            <path d="M 15 105 A 85 85 0 0 0 100 190" class="arc-bg-below"/>
-                            <!-- Horizon line -->
-                            <line x1="12" y1="105" x2="188" y2="105" class="horizon-line"/>
-                            <!-- Ticks -->
-                            <g id="altitude-ticks"></g>
-                            <g id="altitude-ticks-below"></g>
-                            <!-- Labels -->
-                            <text x="10" y="100" class="tick-label">0&deg;</text>
-                            <text x="100" y="12" class="tick-label" text-anchor="middle">90&deg;</text>
-                            <text x="190" y="100" class="tick-label" text-anchor="end">0&deg;</text>
-                            <!-- Limit markers -->
-                            <g id="altitude-limits" class="limit-markers"></g>
-                            <!-- Sun altitude needle with sun dot -->
-                            <g id="sun-alt-needle-group">
-                                <line id="sun-alt-needle" x1="100" y1="105" x2="15" y2="105" class="needle-line sun-color"/>
-                                <circle id="sun-alt-dot" cx="15" cy="105" r="5" class="sun-alt-dot"/>
-                            </g>
-                            <!-- Panel tilt needle -->
-                            <line id="panel-alt-needle" x1="100" y1="105" x2="15" y2="105" class="needle-line panel-color"/>
-                            <!-- Center dot -->
-                            <circle cx="100" cy="105" r="4" class="center-dot"/>
-                        </svg>
-                        <div class="gauge-legend">
-                            <span class="legend-sun">&#9728; Alt: <span id="sun-altitude">--</span>&deg;</span>
-                            <span class="legend-panel">&#9654; Tilt: <span id="pos-vertical">--</span>&deg;</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Observed Limits -->
-                <div class="section-divider"></div>
-                <h3>Observed Limits</h3>
-                <div class="limits-grid">
-                    <div class="limits-item">
-                        <label>Horizontal</label>
-                        <span class="value"><span id="limit-h-min">--</span>&deg; &ndash; <span id="limit-h-max">--</span>&deg;</span>
-                    </div>
-                    <div class="limits-item">
-                        <label>Vertical</label>
-                        <span class="value"><span id="limit-v-min">--</span>&deg; &ndash; <span id="limit-v-max">--</span>&deg;</span>
-                    </div>
-                    <div class="limits-item">
-                        <label>Tracking since</label>
-                        <span class="value" id="limits-since">--</span>
-                    </div>
-                    <div class="limits-item">
-                        <button id="reset-limits-btn" class="btn-warning btn-small">Reset Limits</button>
-                    </div>
-                </div>
-
-                <!-- Wind Gauge -->
-                <div class="section-divider"></div>
-                <h3>Wind</h3>
-                <div class="wind-gauge-container">
-                    <svg id="wind-gauge" viewBox="0 0 160 100" class="wind-svg">
-                        <path d="M 15 85 A 65 65 0 0 1 145 85" class="wind-arc-bg"/>
-                        <path id="wind-arc-value" d="" class="wind-arc-value"/>
-                        <line id="wind-threshold-marker" x1="15" y1="85" x2="15" y2="85" class="wind-threshold-line"/>
-                        <g id="wind-ticks"></g>
-                        <text x="80" y="72" class="wind-value-text" text-anchor="middle">
-                            <tspan id="wind-speed-gauge">--</tspan>
-                        </text>
-                        <text x="80" y="88" class="wind-unit-text" text-anchor="middle">km/h</text>
-                    </svg>
-                    <div class="param-row">
-                        <label>Max Threshold:</label>
-                        <input type="number" id="max-wind-input" min="0" max="99" value="0">
-                        <span class="unit">km/h</span>
-                        <button id="set-wind-btn" class="btn-secondary">Set</button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Debug Panel -->
-            <section class="panel collapsed" id="debug-panel">
-                <h2 class="collapsible">Debug / Raw Commands</h2>
-                <div class="panel-content">
-                    <div class="form-row">
-                        <label for="raw-hex">Hex Data:</label>
-                        <input type="text" id="raw-hex" placeholder="e.g., 01020304">
-                        <button id="send-raw-btn" class="btn-secondary">Send</button>
-                    </div>
-                    <div class="log-container">
-                        <label>Log:</label>
-                        <pre id="debug-log"></pre>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <footer>
-            <p>Solar Tracker API v0.1.0</p>
-        </footer>
+        <footer>Solar Tracker API v0.1.0</footer>
     </div>
 
-    <script src="/static/app.js?v=10"></script>
+    <!-- Hidden elements for wind (keep for API compat) -->
+    <input type="hidden" id="max-wind-input" value="0">
+    <button id="set-wind-btn" style="display:none"></button>
+
+    <script src="/static/app.js?v=11"></script>
 </body>
 </html>
