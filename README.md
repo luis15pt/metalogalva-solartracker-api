@@ -1,6 +1,6 @@
 # Solar Tracker API
 
-A REST API and MQTT bridge for remote control of solar tracking systems, designed for Home Assistant integration.
+A REST API and MQTT bridge for remote control of Metalogalva solar tracking systems, designed for Home Assistant integration.
 
 This project replaces the need for a Windows laptop + USB-to-serial adapter by providing a Raspberry Pi-based solution that exposes the solar tracker control via HTTP API and MQTT.
 
@@ -8,9 +8,10 @@ This project replaces the need for a Windows laptop + USB-to-serial adapter by p
 
 - **REST API** - Full HTTP API for all tracker operations
 - **MQTT Integration** - Native Home Assistant auto-discovery support
-- **Web UI** - Built-in control panel accessible via browser
+- **Web UI** - Mobile-first control panel with scene visualization (animated sky, weather, sun/moon, panel), half-compass and altitude gauges, weather data from Open-Meteo API
 - **WebSocket** - Real-time status updates
-- **Docker** - Easy deployment with Docker Compose
+- **Docker** - Pre-built arm64 image from GHCR, CI/CD via GitHub Actions
+- **Persistent Logging** - State change logging with rotating file handler (5x20MB)
 
 ## Architecture
 
@@ -34,7 +35,7 @@ This project replaces the need for a Windows laptop + USB-to-serial adapter by p
 
 ### Prerequisites
 
-- Raspberry Pi (or any Linux device) with Docker installed
+- Raspberry Pi (or any Linux arm64 device) with Docker installed
 - USB-to-Serial adapter connected to the solar tracker
 - Network access from Home Assistant
 
@@ -42,8 +43,8 @@ This project replaces the need for a Windows laptop + USB-to-serial adapter by p
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/SolarTracker_API.git
-   cd SolarTracker_API
+   git clone https://github.com/luis15pt/metalogalva-solartracker-api.git
+   cd metalogalva-solartracker-api
    ```
 
 2. **Configure environment (optional):**
@@ -57,8 +58,16 @@ This project replaces the need for a Windows laptop + USB-to-serial adapter by p
    docker-compose up -d
    ```
 
+   This pulls the pre-built arm64 image from `ghcr.io/luis15pt/metalogalva-solartracker-api:latest`. No local build required.
+
 4. **Access the Web UI:**
    Open `http://raspberry-pi-ip:8000` in your browser
+
+### Docker / CI/CD
+
+The project uses GitHub Actions (`.github/workflows/docker-build.yml`) to automatically build and push an arm64 Docker image to GHCR on every push to `main`. The `docker-compose.yml` pulls this pre-built image instead of building locally, which avoids slow arm64 builds on the Pi.
+
+A `./data` volume is mounted at `/app/data` inside the container for persistent storage (state change logs, observed position limits).
 
 ### Configuration
 
@@ -72,6 +81,18 @@ Environment variables (can be set in `.env` or `docker-compose.yml`):
 | `MQTT_PORT` | `1883` | MQTT broker port |
 | `MQTT_TOPIC_PREFIX` | `solartracker` | MQTT topic prefix |
 | `LOG_LEVEL` | `INFO` | Logging level |
+
+## Web UI
+
+The built-in web interface is a mobile-first single-page application featuring:
+
+- **Scene visualization** - Animated sky gradient with sun/moon position, weather effects (rain, clouds), and a solar panel that reflects the tracker's real orientation
+- **Half-compass gauge** - Shows panel horizontal (azimuth) angle
+- **Altitude gauge** - Shows panel vertical (tilt) angle
+- **Weather data** - Pulled from Open-Meteo API: sunrise/sunset times, temperature, wind speed, and weather conditions with animated overlays
+- **D-pad controls** - Directional movement buttons with a HOME center button
+- **Mode toggle** - Switch between automatic and manual mode
+- **Collapsible sections** - Alarms, alarm history, connection info, and settings are organized into expandable panels
 
 ## API Endpoints
 
@@ -93,6 +114,7 @@ Environment variables (can be set in `.env` or `docker-compose.yml`):
 | POST | `/tracker/stop` | Emergency stop |
 | POST | `/tracker/mode/{mode}` | Set mode (manual/automatic) |
 | POST | `/tracker/alarms/clear` | Clear all alarms |
+| POST | `/tracker/alarms/clear-history` | Clear alarm history log |
 | POST | `/tracker/alarms/query` | Query detailed alarm status |
 | POST | `/tracker/wind` | Set max wind threshold |
 | POST | `/tracker/gps` | Set GPS location (lat/lon) |
@@ -102,6 +124,8 @@ Environment variables (can be set in `.env` or `docker-compose.yml`):
 | POST | `/tracker/home` | Go to HOME position |
 | POST | `/tracker/stow` | Go to STOW position |
 | POST | `/tracker/zero` | Zero/reset panel encoders |
+| POST | `/tracker/limits/reset` | Reset observed position limits |
+| GET | `/tracker/limits` | Get observed position limits |
 
 ### WebSocket
 | Endpoint | Description |
@@ -146,7 +170,11 @@ See [`homeassistant/configuration.yaml`](homeassistant/configuration.yaml) for e
 
 See [`homeassistant/lovelace-card.yaml`](homeassistant/lovelace-card.yaml) for a ready-to-use dashboard card.
 
-## Protocol Status
+## Logging
+
+State changes (alarm triggers, mode transitions, status flag changes, vertical position changes) are logged to a persistent rotating file at `/app/data/solartracker.log`. The log uses 5 rotating files of 20MB each (100MB max). Only state transitions are logged, not every poll cycle, keeping the log focused on diagnostic events.
+
+## Protocol
 
 The serial protocol has been reverse engineered from multiple sources:
 - STcontrol V4.0.4.0.exe (radare2 disassembly)
@@ -155,20 +183,53 @@ The serial protocol has been reverse engineered from multiple sources:
 
 See [docs/protocol.md](docs/protocol.md) for full documentation.
 
+### Key Protocol Details
+
+Response packet structure (38+ bytes) with notable offsets:
+
+| Offset | Description |
+|--------|-------------|
+| 7 | Mode byte: `0x00` = AUTO, `0x01` = MANUAL (inverted from what STcontrol implied) |
+| 16-19 | Panel vertical/tilt (float32 LE) |
+| 22-25 | Panel horizontal/azimuth (float32 LE) |
+| 26-29 | Sun altitude (float32 LE) |
+| 30-33 | Sun azimuth (float32 LE) |
+| 37 | Alarm bitmask (corrected from offset 36) |
+
+### Protocol Fixes Applied
+
+- **Alarm byte offset**: Corrected to byte 37 (was incorrectly 36)
+- **Mode detection**: `0x00` = AUTO, `0x01` = MANUAL (was inverted)
+- **Corrupt packet filtering**: Alarm bytes >= `0xF0` are treated as garbage and ignored
+- **Alarm bit 3**: Correctly mapped to `tilt_limit_flat` (panel in stow position)
+
+### Alarm Bitmask (byte 37)
+
+| Bit | Alarm |
+|-----|-------|
+| 0 | Vertical limit |
+| 1 | Unknown |
+| 2 | West limit |
+| 3 | Tilt limit / panel flat (stow) |
+| 4 | Actuator motor current |
+| 5 | Rotation motor current |
+| 6 | Unknown |
+| 7 | Encoder error |
+
 ### Implemented Commands
 
 | Command | Status | Description |
 |---------|--------|-------------|
-| Movement (0x20-0x24) | ✅ Implemented | Up, Down, Left, Right, Stop |
-| Preset Positions (0x25-0x27) | ✅ Implemented | Go to HOME/STOW positions (needs testing) |
-| Manual Mode (0x10) | ✅ Implemented | Switch to manual control |
-| Auto Mode (0x11) | ✅ Implemented | Switch to automatic tracking |
-| Clear Alarms (0x40) | ✅ Implemented | Clears all active alarms |
-| Request Status (0x30) | ✅ Implemented | Polls current tracker status |
-| Alarm Query (0x31) | ✅ Implemented | Query alarm bitmask |
-| Date/Time (0x32) | ✅ Implemented | Set tracker internal clock |
-| GPS Location (0x33) | ✅ Implemented | Set lat/lon for sun calculation |
-| Zero Panel (0x34) | ✅ Implemented | Reset panel position counters |
+| Movement (0x20-0x24) | Implemented | Up, Down, Left, Right, Stop |
+| Preset Positions (0x25-0x27) | Implemented | Go to HOME/STOW positions (needs testing) |
+| Manual Mode (0x10) | Implemented | Switch to manual control |
+| Auto Mode (0x11) | Implemented | Switch to automatic tracking |
+| Clear Alarms (0x40) | Implemented | Clears all active alarms |
+| Request Status (0x30) | Implemented | Polls current tracker status |
+| Alarm Query (0x31) | Implemented | Query alarm bitmask |
+| Date/Time (0x32) | Implemented | Set tracker internal clock |
+| GPS Location (0x33) | Implemented | Set lat/lon for sun calculation |
+| Zero Panel (0x34) | Implemented | Reset panel position counters |
 
 ### Discovered but Untested Commands
 
@@ -177,14 +238,6 @@ See [docs/protocol.md](docs/protocol.md) for full documentation.
 | Query 0x32, 0x35, 0x36 | 0x01 | Unknown queries - need testing |
 | Preset positions 0x25-0x27 | 0x02 | Found in firmware - HOME/STOW? |
 | Extended 0xF0-0xF2 | 0x01 | Found in firmware - unknown |
-
-### TODO
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Date/Time Sync | ✅ Implemented | Type 0x09 Cmd 0x32 (from firmware analysis) |
-| Set Wind Threshold | 🔍 Investigating | Possibly Query 0x35 or 0x36 |
-| Set East/West Limits | 🔍 Investigating | Need more captures |
 
 ### Protocol Capture Tool
 
@@ -201,27 +254,46 @@ python scripts/serial_sniffer.py --port /dev/ttyUSB0 --log capture.txt
 python scripts/serial_sniffer.py --port-a COM10 --port-b COM11 --log capture.txt
 ```
 
+## Deployment Notes
+
+### WiFi Watchdog (Raspberry Pi)
+
+If deploying on a Raspberry Pi over WiFi, a custom `wifi-watchdog.service` systemd unit is recommended to automatically reconnect if the WiFi link drops. This is not part of the application itself but is useful for headless Pi deployments where the tracker is in a remote location.
+
+### TODO
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Date/Time Sync | Implemented | Type 0x09 Cmd 0x32 (from firmware analysis) |
+| Set Wind Threshold | Investigating | Possibly Query 0x35 or 0x36 |
+| Set East/West Limits | Investigating | Need more captures |
+
 ## Project Structure
 
 ```
-SolarTracker_API/
-├── docker-compose.yml      # Docker Compose configuration
+metalogalva-solartracker-api/
+├── .github/
+│   └── workflows/
+│       └── docker-build.yml  # CI/CD: build arm64 image, push to GHCR
+├── docker-compose.yml      # Docker Compose (pulls pre-built GHCR image)
 ├── Dockerfile              # Docker build file
 ├── requirements.txt        # Python dependencies
 ├── src/
 │   └── solartracker/
-│       ├── main.py         # FastAPI application
+│       ├── main.py         # FastAPI app, state change logging, alarm history
 │       ├── config.py       # Configuration settings
 │       ├── models.py       # Pydantic models
-│       ├── protocol.py     # Serial protocol definition
+│       ├── protocol.py     # Serial protocol (alarm/mode fixes, corrupt filtering)
 │       ├── serial_handler.py   # Serial communication
 │       └── mqtt_handler.py     # MQTT bridge
 ├── web/
 │   ├── static/
 │   │   ├── style.css       # Web UI styles
-│   │   └── app.js          # Web UI JavaScript
+│   │   └── app.js          # Scene visualization, weather, gauges
 │   └── templates/
-│       └── index.html      # Web UI template
+│       └── index.html      # Mobile-first Web UI
+├── data/                   # Persistent storage (mounted volume)
+│   └── solartracker.log    # Rotating state change log
 ├── scripts/
 │   └── serial_sniffer.py   # Protocol capture tool
 ├── homeassistant/
@@ -231,7 +303,7 @@ SolarTracker_API/
 │   └── config/
 │       └── mosquitto.conf  # MQTT broker config
 └── docs/
-    └── reverse-engineering.md  # Original app analysis
+    └── protocol.md         # Full protocol documentation
 ```
 
 ## Development
