@@ -37,6 +37,51 @@
                     <button id="sync-clock-btn" class="btn btn-sm btn-ghost" title="Sync tracker clock">&#8635;</button>
                 </div>
             </div>
+            <!-- Scene Visualization -->
+            <div class="scene-container">
+                <svg id="scene" viewBox="0 0 480 200" class="scene-svg" preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                        <linearGradient id="sky-gradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop id="sky-top" offset="0%" stop-color="#0a1628"/>
+                            <stop id="sky-mid" offset="60%" stop-color="#16213e"/>
+                            <stop id="sky-bottom" offset="100%" stop-color="#1a2940"/>
+                        </linearGradient>
+                        <radialGradient id="sun-glow" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="rgba(255,193,7,0.6)"/>
+                            <stop offset="40%" stop-color="rgba(255,193,7,0.2)"/>
+                            <stop offset="100%" stop-color="rgba(255,193,7,0)"/>
+                        </radialGradient>
+                        <linearGradient id="ground-gradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#1a3020"/>
+                            <stop offset="100%" stop-color="#0a1810"/>
+                        </linearGradient>
+                    </defs>
+                    <!-- Sky -->
+                    <rect id="sky-rect" x="0" y="0" width="480" height="140" fill="url(#sky-gradient)"/>
+                    <!-- Ground -->
+                    <rect x="0" y="140" width="480" height="60" fill="url(#ground-gradient)"/>
+                    <!-- Horizon line -->
+                    <line x1="0" y1="140" x2="480" y2="140" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                    <!-- Sun glow -->
+                    <circle id="scene-sun-glow" cx="240" cy="70" r="40" fill="url(#sun-glow)" opacity="0"/>
+                    <!-- Sun disc -->
+                    <circle id="scene-sun" cx="240" cy="70" r="12" fill="#ffc107" opacity="0"/>
+                    <!-- Panel shadow on ground -->
+                    <polygon id="panel-shadow" points="220,155 260,155 255,180 225,180" fill="rgba(0,0,0,0.3)" opacity="0"/>
+                    <!-- Panel post -->
+                    <line x1="240" y1="140" x2="240" y2="115" stroke="#556677" stroke-width="3" stroke-linecap="round"/>
+                    <!-- Solar panel -->
+                    <g id="scene-panel" transform="rotate(0, 240, 115)">
+                        <rect x="205" y="110" width="70" height="5" rx="2" fill="#2a6090" stroke="#3a80b0" stroke-width="1"/>
+                        <line x1="222" y1="110" x2="222" y2="115" stroke="#3a80b0" stroke-width="0.5"/>
+                        <line x1="240" y1="110" x2="240" y2="115" stroke="#3a80b0" stroke-width="0.5"/>
+                        <line x1="258" y1="110" x2="258" y2="115" stroke="#3a80b0" stroke-width="0.5"/>
+                    </g>
+                    <!-- Scene readout -->
+                    <text id="scene-readout" x="12" y="190" fill="rgba(255,255,255,0.4)" font-size="10" font-family="monospace"></text>
+                </svg>
+            </div>
+
             <div class="gauge-row">
                 <!-- Compass -->
                 <div class="gauge-container">

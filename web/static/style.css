@@ -141,6 +141,19 @@ header h1 {
     padding: 2px 0;
 }
 
+/* Scene Visualization */
+.scene-container {
+    margin-bottom: 12px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.scene-svg {
+    width: 100%;
+    display: block;
+    border-radius: 8px;
+}
+
 /* Cards */
 .card {
     background: var(--bg-card);

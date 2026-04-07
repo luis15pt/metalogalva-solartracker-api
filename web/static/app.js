@@ -233,6 +233,97 @@ function updateAltitudeGauge(sunAlt, panelVert) {
     }
 }
 
+function updateScene(sunAzi, sunAlt, panelH, panelV) {
+    const sun = document.getElementById('scene-sun');
+    const glow = document.getElementById('scene-sun-glow');
+    const panel = document.getElementById('scene-panel');
+    const shadow = document.getElementById('panel-shadow');
+    const readout = document.getElementById('scene-readout');
+    const skyTop = document.getElementById('sky-top');
+    const skyMid = document.getElementById('sky-mid');
+    const skyBottom = document.getElementById('sky-bottom');
+    if (!sun || !panel) return;
+
+    // Sun position: map azimuth to x (East=right, West=left), altitude to y
+    // Azimuth: 90(E)=right, 180(S)=center, 270(W)=left
+    const sunX = sunAzi !== null ? 40 + ((sunAzi % 360) / 360) * 400 : 240;
+    // Altitude: 0=horizon(y=140), 90=top(y=10), negative=below(y>140)
+    const altClamped = sunAlt !== null ? Math.max(-20, Math.min(90, sunAlt)) : 0;
+    const sunY = 140 - (altClamped / 90) * 130;
+
+    const isDay = sunAlt !== null && sunAlt > 0;
+    const isDawn = sunAlt !== null && sunAlt > -10 && sunAlt <= 0;
+    const sunVisible = sunAlt !== null && sunAlt > -10;
+
+    // Update sun position
+    sun.setAttribute('cx', sunX);
+    sun.setAttribute('cy', sunY);
+    sun.setAttribute('opacity', sunVisible ? Math.min(1, (sunAlt + 10) / 15) : 0);
+    glow.setAttribute('cx', sunX);
+    glow.setAttribute('cy', sunY);
+    glow.setAttribute('opacity', sunVisible ? Math.min(0.8, (sunAlt + 10) / 20) : 0);
+
+    // Sky gradient based on sun altitude
+    if (sunAlt !== null) {
+        if (sunAlt > 10) {
+            // Full day
+            skyTop.setAttribute('stop-color', '#1a3a5c');
+            skyMid.setAttribute('stop-color', '#2a5a8c');
+            skyBottom.setAttribute('stop-color', '#4a90c0');
+        } else if (sunAlt > 0) {
+            // Low sun / golden hour
+            skyTop.setAttribute('stop-color', '#1a2a4c');
+            skyMid.setAttribute('stop-color', '#3a4a6c');
+            skyBottom.setAttribute('stop-color', '#c07040');
+        } else if (sunAlt > -10) {
+            // Twilight
+            skyTop.setAttribute('stop-color', '#0a1628');
+            skyMid.setAttribute('stop-color', '#1a2a40');
+            skyBottom.setAttribute('stop-color', '#6a3a30');
+        } else {
+            // Night
+            skyTop.setAttribute('stop-color', '#050a10');
+            skyMid.setAttribute('stop-color', '#0a1220');
+            skyBottom.setAttribute('stop-color', '#0f1a28');
+        }
+    }
+
+    // Panel tilt: 0° = vertical (pointing up), 90° = flat (horizontal)
+    // Rotate around pivot point (240, 115)
+    if (panelV !== null) {
+        const tiltAngle = 90 - panelV; // Convert: 90° vertical = 0° rotation, 0° vertical = 90° rotation
+        panel.setAttribute('transform', `rotate(${tiltAngle}, 240, 112)`);
+    }
+
+    // Shadow: cast from sun direction, only visible during day
+    if (isDay && panelV !== null && sunAlt !== null) {
+        // Shadow length inversely proportional to sun altitude
+        const shadowLen = Math.max(5, (90 - sunAlt) * 0.8);
+        // Shadow direction: opposite to sun azimuth relative to panel
+        const sunDir = sunAzi !== null ? (sunAzi > 180 ? -1 : 1) : 0;
+        const shadowOffset = sunDir * shadowLen * 0.5;
+        const panelLeft = 205, panelRight = 275;
+        const groundY = 155;
+        const shadowY = groundY + Math.max(3, 15 - sunAlt * 0.15);
+        shadow.setAttribute('points',
+            `${panelLeft + 5},${groundY} ${panelRight - 5},${groundY} ` +
+            `${panelRight + shadowOffset},${shadowY} ${panelLeft + shadowOffset},${shadowY}`
+        );
+        shadow.setAttribute('opacity', Math.min(0.4, sunAlt / 30));
+    } else {
+        shadow.setAttribute('opacity', '0');
+    }
+
+    // Readout text
+    if (readout) {
+        const sAzi = sunAzi !== null ? sunAzi.toFixed(1) : '--';
+        const sAlt = sunAlt !== null ? sunAlt.toFixed(1) : '--';
+        const pH = panelH !== null ? panelH.toFixed(1) : '--';
+        const pV = panelV !== null ? panelV.toFixed(1) : '--';
+        readout.textContent = `Sun: ${sAzi}\u00B0 / ${sAlt}\u00B0  Panel: ${pH}\u00B0 / ${pV}\u00B0`;
+    }
+}
+
 function updateCompassLimits(hMin, hMax) {
     const g = document.getElementById('compass-limits');
     if (!g) return;
@@ -365,6 +456,7 @@ function updateUI(status) {
 
     updateCompass(sunAzi, panelH);
     updateAltitudeGauge(sunAlt, panelV);
+    updateScene(sunAzi, sunAlt, panelH, panelV);
 
     // Wind (hidden but keep for API compat)
     const windThresh = status.max_wind_threshold ?? null;
