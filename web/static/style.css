@@ -357,6 +357,39 @@ header h1 {
 .limit-marker-line { stroke: rgba(0,200,83,0.6); stroke-width: 2; stroke-dasharray: 4 2; }
 .limit-marker-arc { fill: none; stroke: rgba(0,200,83,0.15); stroke-width: 8; }
 
+/* Dashboard: gauges + controls side by side */
+.dashboard-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.gauges-col {
+    flex: 1;
+    min-width: 0;
+}
+
+.controls-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 140px;
+}
+
+@media (max-width: 480px) {
+    .dashboard-row {
+        flex-direction: column;
+        align-items: center;
+    }
+    .controls-col {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+    }
+}
+
 /* Controls Row */
 .controls-row {
     display: flex;
@@ -391,6 +424,9 @@ header h1 {
     background: var(--accent);
     transform: scale(0.92);
 }
+
+.dpad-sm { grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); gap: 3px; }
+.dpad-sm .dpad-btn { font-size: 1rem; }
 
 .dpad-btn.up { grid-column: 2; grid-row: 1; }
 .dpad-btn.left { grid-column: 1; grid-row: 2; }

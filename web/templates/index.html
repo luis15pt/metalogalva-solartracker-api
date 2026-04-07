@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=29">
+    <link rel="stylesheet" href="/static/style.css?v=30">
 </head>
 <body>
     <div class="container">
@@ -129,81 +129,76 @@
                 </svg>
             </div>
 
-            <div class="gauge-row">
-                <!-- Compass -->
-                <div class="gauge-container">
-                    <svg id="compass-gauge" viewBox="0 0 200 200" class="compass-svg">
-                        <circle cx="100" cy="100" r="95" class="gauge-bg"/>
-                        <g id="compass-ticks"></g>
-                        <text x="100" y="22" class="cardinal">N</text>
-                        <text x="100" y="188" class="cardinal">S</text>
-                        <text x="12" y="105" class="cardinal">W</text>
-                        <text x="188" y="105" class="cardinal">E</text>
-                        <g id="sun-needle" class="needle sun-needle">
-                            <line x1="100" y1="100" x2="100" y2="30"/>
-                            <circle cx="100" cy="30" r="6" class="sun-dot"/>
-                        </g>
-                        <g id="panel-needle" class="needle panel-needle">
-                            <line x1="100" y1="100" x2="100" y2="35"/>
-                            <polygon points="96,40 104,40 100,28"/>
-                        </g>
-                        <g id="compass-limits" class="limit-markers"></g>
-                        <circle cx="100" cy="100" r="4" class="center-dot"/>
-                    </svg>
-                    <div class="gauge-legend">
-                        <span class="legend-sun">&#9728; <span id="sun-azimuth">--</span>&deg;</span>
-                        <span class="legend-panel">&#9654; <span id="pos-horizontal">--</span>&deg;</span>
+            <!-- Gauges + Controls in one row -->
+            <div class="dashboard-row">
+                <!-- Left: Gauges stacked -->
+                <div class="gauges-col">
+                    <div class="gauge-row">
+                        <!-- Compass -->
+                        <div class="gauge-container">
+                            <svg id="compass-gauge" viewBox="0 0 200 200" class="compass-svg">
+                                <circle cx="100" cy="100" r="95" class="gauge-bg"/>
+                                <g id="compass-ticks"></g>
+                                <text x="100" y="22" class="cardinal">N</text>
+                                <text x="100" y="188" class="cardinal">S</text>
+                                <text x="12" y="105" class="cardinal">W</text>
+                                <text x="188" y="105" class="cardinal">E</text>
+                                <g id="sun-needle" class="needle sun-needle">
+                                    <line x1="100" y1="100" x2="100" y2="30"/>
+                                    <circle cx="100" cy="30" r="6" class="sun-dot"/>
+                                </g>
+                                <g id="panel-needle" class="needle panel-needle">
+                                    <line x1="100" y1="100" x2="100" y2="35"/>
+                                    <polygon points="96,40 104,40 100,28"/>
+                                </g>
+                                <g id="compass-limits" class="limit-markers"></g>
+                                <circle cx="100" cy="100" r="4" class="center-dot"/>
+                            </svg>
+                            <div class="gauge-legend">
+                                <span class="legend-sun">&#9728; <span id="sun-azimuth">--</span>&deg;</span>
+                                <span class="legend-panel">&#9654; <span id="pos-horizontal">--</span>&deg;</span>
+                            </div>
+                        </div>
+                        <!-- Altitude (compact, no negative zone) -->
+                        <div class="gauge-container">
+                            <svg id="altitude-gauge" viewBox="0 0 120 120" class="altitude-svg">
+                                <path d="M 10 105 A 90 90 0 0 1 100 15" class="arc-bg"/>
+                                <g id="altitude-ticks"></g>
+                                <g id="altitude-ticks-below" style="display:none"></g>
+                                <text x="6" y="100" class="tick-label">0&deg;</text>
+                                <text x="100" y="10" class="tick-label" text-anchor="middle">90&deg;</text>
+                                <g id="altitude-limits" class="limit-markers"></g>
+                                <g id="sun-alt-needle-group">
+                                    <line id="sun-alt-needle" x1="100" y1="105" x2="10" y2="105" class="needle-line sun-color"/>
+                                    <circle id="sun-alt-dot" cx="10" cy="105" r="4" class="sun-alt-dot"/>
+                                </g>
+                                <line id="panel-alt-needle" x1="100" y1="105" x2="10" y2="105" class="needle-line panel-color"/>
+                                <circle cx="100" cy="105" r="3" class="center-dot"/>
+                            </svg>
+                            <div class="gauge-legend">
+                                <span class="legend-sun">&#9728; <span id="sun-altitude">--</span>&deg;</span>
+                                <span class="legend-panel">&#9654; <span id="pos-vertical">--</span>&deg;</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <!-- Altitude -->
-                <div class="gauge-container">
-                    <svg id="altitude-gauge" viewBox="0 0 200 200" class="altitude-svg">
-                        <path d="M 15 105 A 85 85 0 0 1 100 20" class="arc-bg"/>
-                        <path d="M 15 105 A 85 85 0 0 0 40 165" class="arc-bg-below"/>
-                        <line x1="12" y1="105" x2="105" y2="105" class="horizon-line"/>
-                        <g id="altitude-ticks"></g>
-                        <g id="altitude-ticks-below"></g>
-                        <text x="10" y="100" class="tick-label">0&deg;</text>
-                        <text x="100" y="12" class="tick-label" text-anchor="middle">90&deg;</text>
-                        <g id="altitude-limits" class="limit-markers"></g>
-                        <g id="sun-alt-needle-group">
-                            <line id="sun-alt-needle" x1="100" y1="105" x2="15" y2="105" class="needle-line sun-color"/>
-                            <circle id="sun-alt-dot" cx="15" cy="105" r="5" class="sun-alt-dot"/>
-                        </g>
-                        <line id="panel-alt-needle" x1="100" y1="105" x2="15" y2="105" class="needle-line panel-color"/>
-                        <circle cx="100" cy="105" r="4" class="center-dot"/>
-                    </svg>
-                    <div class="gauge-legend">
-                        <span class="legend-sun">&#9728; <span id="sun-altitude">--</span>&deg;</span>
-                        <span class="legend-panel">&#9654; <span id="pos-vertical">--</span>&deg;</span>
+                <!-- Right: Controls -->
+                <div class="controls-col">
+                    <div class="mode-toggle" style="margin-bottom:12px">
+                        <button id="mode-manual-btn" class="btn btn-mode">Manual</button>
+                        <button id="mode-auto-btn" class="btn btn-mode">Auto</button>
                     </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Controls -->
-        <section class="card">
-            <div class="card-header">
-                <h2>Control</h2>
-                <div class="mode-toggle">
-                    <button id="mode-manual-btn" class="btn btn-mode">Manual</button>
-                    <button id="mode-auto-btn" class="btn btn-mode">Auto</button>
-                </div>
-            </div>
-
-            <div class="controls-row">
-                <!-- D-Pad -->
-                <div class="dpad">
-                    <button class="dpad-btn up" data-direction="up">&#9650;</button>
-                    <button class="dpad-btn left" data-direction="left">&#9664;</button>
-                    <button class="dpad-btn center" id="stop-btn">STOP</button>
-                    <button class="dpad-btn right" data-direction="right">&#9654;</button>
-                    <button class="dpad-btn down" data-direction="down">&#9660;</button>
-                </div>
-                <!-- Preset Buttons -->
-                <div class="preset-buttons">
-                    <button id="home-btn" class="btn btn-preset">&#8962; HOME</button>
-                    <button id="stow-btn" class="btn btn-preset">&#9660; STOW</button>
+                    <div class="dpad dpad-sm">
+                        <button class="dpad-btn up" data-direction="up">&#9650;</button>
+                        <button class="dpad-btn left" data-direction="left">&#9664;</button>
+                        <button class="dpad-btn center" id="stop-btn">STOP</button>
+                        <button class="dpad-btn right" data-direction="right">&#9654;</button>
+                        <button class="dpad-btn down" data-direction="down">&#9660;</button>
+                    </div>
+                    <div class="preset-buttons" style="margin-top:10px">
+                        <button id="home-btn" class="btn btn-preset btn-sm">&#8962; HOME</button>
+                        <button id="stow-btn" class="btn btn-preset btn-sm">&#9660; STOW</button>
+                    </div>
                 </div>
             </div>
         </section>
@@ -282,6 +277,6 @@
     <span id="limits-since" style="display:none"></span>
     <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=29"></script>
+    <script src="/static/app.js?v=30"></script>
 </body>
 </html>

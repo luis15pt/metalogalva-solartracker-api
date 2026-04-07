@@ -141,7 +141,7 @@ function initCompassTicks() {
 function initAltitudeTicks() {
     const g = document.getElementById('altitude-ticks');
     if (!g) return;
-    const cx = 100, cy = 105, r = 85;
+    const cx = 100, cy = 105, r = 80;
     for (let alt = 0; alt <= 90; alt += 15) {
         const angle = 180 - alt;
         const rad = angle * Math.PI / 180;
