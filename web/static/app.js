@@ -251,8 +251,8 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
     // Map azimuth 60-300° to x 20-460 (visible range)
     let sunX = 240;
     if (sunAzi !== null) {
-        // Normalize: 60°(E-NE)=left, 180°(S)=center, 300°(W-NW)=right
-        sunX = 20 + ((Math.max(60, Math.min(300, sunAzi)) - 60) / 240) * 440;
+        // East(90°)=right, South(180°)=center, West(270°)=left — matches compass
+        sunX = 460 - ((Math.max(60, Math.min(300, sunAzi)) - 60) / 240) * 440;
     }
     // Altitude to Y: 0°=horizon(150), 90°=top(10), -15°=below(185)
     const altClamped = sunAlt !== null ? Math.max(-15, Math.min(90, sunAlt)) : 0;
@@ -307,7 +307,7 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
     // panelV: 0°=vertical/upright, 90°=flat/horizontal
     // Positive rotation (clockwise) tilts left side up to face the sun
     if (panelV !== null) {
-        const tiltAngle = panelV - 90;
+        const tiltAngle = 90 - panelV;
         panel.setAttribute('transform', `rotate(${tiltAngle}, 380, 118)`);
     }
 
@@ -324,7 +324,7 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
         const shadowLen = Math.max(8, (70 - sunAlt) * 0.6);
         // Sun to the left of panel = shadow goes right, and vice versa
         const panelCX = 380;
-        const shadowDir = sunX < panelCX ? 1 : -1;
+        const shadowDir = sunX > panelCX ? 1 : -1;
         const shadowSpread = shadowDir * shadowLen;
         const gY = 160; // ground surface
         const sY = gY + Math.max(4, 20 - sunAlt * 0.2);

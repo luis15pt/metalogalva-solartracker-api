@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=16">
+    <link rel="stylesheet" href="/static/style.css?v=17">
 </head>
 <body>
     <div class="container">
@@ -71,9 +71,9 @@
                         <circle cx="80" cy="55" r="0.6" fill="white"/><circle cx="260" cy="50" r="0.9" fill="white"/>
                         <circle cx="420" cy="60" r="0.8" fill="white"/><circle cx="160" cy="65" r="0.7" fill="white"/>
                     </g>
-                    <!-- E / W labels on horizon -->
-                    <text x="15" y="148" fill="rgba(255,255,255,0.2)" font-size="10" font-family="sans-serif">E</text>
-                    <text x="462" y="148" fill="rgba(255,255,255,0.2)" font-size="10" font-family="sans-serif">W</text>
+                    <!-- E / W labels on horizon (East=right, West=left, matching compass) -->
+                    <text x="462" y="148" fill="rgba(255,255,255,0.2)" font-size="10" font-family="sans-serif">E</text>
+                    <text x="15" y="148" fill="rgba(255,255,255,0.2)" font-size="10" font-family="sans-serif">W</text>
                     <!-- Ground -->
                     <rect x="0" y="150" width="480" height="50" fill="url(#ground-gradient)"/>
                     <!-- Horizon line -->
@@ -270,6 +270,6 @@
     <input type="hidden" id="max-wind-input" value="0">
     <button id="set-wind-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=16"></script>
+    <script src="/static/app.js?v=17"></script>
 </body>
 </html>
