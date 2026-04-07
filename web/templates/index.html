@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=28">
+    <link rel="stylesheet" href="/static/style.css?v=29">
 </head>
 <body>
     <div class="container">
@@ -77,12 +77,35 @@
                     <rect x="0" y="150" width="480" height="50" fill="url(#ground-gradient)"/>
                     <!-- Horizon line -->
                     <line x1="0" y1="150" x2="480" y2="150" stroke="rgba(255,255,255,0.12)" stroke-width="0.5"/>
-                    <!-- Sun glow -->
+                    <!-- Sun glow (behind clouds) -->
                     <circle id="scene-sun-glow" cx="240" cy="70" r="50" fill="url(#sun-glow)" opacity="0"/>
+                    <!-- Clouds (behind sun disc, so sun peeks through) -->
+                    <g id="weather-clouds" opacity="0">
+                        <ellipse cx="320" cy="45" rx="40" ry="18" fill="rgba(180,190,200,0.35)"/>
+                        <ellipse cx="340" cy="38" rx="30" ry="15" fill="rgba(180,190,200,0.45)"/>
+                        <ellipse cx="305" cy="40" rx="25" ry="12" fill="rgba(180,190,200,0.3)"/>
+                        <ellipse cx="420" cy="65" rx="35" ry="14" fill="rgba(180,190,200,0.25)"/>
+                        <ellipse cx="440" cy="58" rx="25" ry="12" fill="rgba(180,190,200,0.35)"/>
+                    </g>
                     <!-- Sun rays -->
                     <circle id="scene-sun-rays" cx="240" cy="70" r="30" fill="url(#sun-rays)" opacity="0"/>
-                    <!-- Sun disc -->
+                    <!-- Sun disc (on top of clouds) -->
                     <circle id="scene-sun" cx="240" cy="70" r="14" fill="#ffc107" opacity="0"/>
+                    <!-- Rain (in front of everything in sky) -->
+                    <g id="weather-rain" opacity="0">
+                        <line x1="290" y1="60" x2="288" y2="72" class="raindrop rd1"/>
+                        <line x1="310" y1="55" x2="308" y2="67" class="raindrop rd2"/>
+                        <line x1="330" y1="62" x2="328" y2="74" class="raindrop rd3"/>
+                        <line x1="350" y1="58" x2="348" y2="70" class="raindrop rd4"/>
+                        <line x1="305" y1="75" x2="303" y2="87" class="raindrop rd5"/>
+                        <line x1="325" y1="70" x2="323" y2="82" class="raindrop rd6"/>
+                        <line x1="345" y1="76" x2="343" y2="88" class="raindrop rd7"/>
+                        <line x1="315" y1="88" x2="313" y2="100" class="raindrop rd8"/>
+                        <line x1="335" y1="84" x2="333" y2="96" class="raindrop rd9"/>
+                        <line x1="400" y1="72" x2="398" y2="84" class="raindrop rd10"/>
+                        <line x1="420" y1="68" x2="418" y2="80" class="raindrop rd11"/>
+                        <line x1="440" y1="75" x2="438" y2="87" class="raindrop rd12"/>
+                    </g>
                     <!-- Panel shadow on ground -->
                     <polygon id="panel-shadow" points="85,160 155,160 165,185 75,185" fill="rgba(0,0,0,0.25)" opacity="0"/>
                     <!-- Panel assembly (left side of scene) -->
@@ -99,32 +122,7 @@
                         <!-- Panel highlight -->
                         <rect id="panel-highlight" x="85" y="91" width="70" height="8" rx="1" fill="rgba(150,200,255,0.15)" opacity="0"/>
                     </g>
-                    <!-- Weather effects layer (rain, clouds) -->
-                    <g id="weather-effects">
-                        <!-- Clouds (hidden by default) -->
-                        <g id="weather-clouds" opacity="0">
-                            <ellipse cx="320" cy="45" rx="40" ry="18" fill="rgba(180,190,200,0.4)"/>
-                            <ellipse cx="340" cy="38" rx="30" ry="15" fill="rgba(180,190,200,0.5)"/>
-                            <ellipse cx="305" cy="40" rx="25" ry="12" fill="rgba(180,190,200,0.35)"/>
-                            <ellipse cx="420" cy="65" rx="35" ry="14" fill="rgba(180,190,200,0.3)"/>
-                            <ellipse cx="440" cy="58" rx="25" ry="12" fill="rgba(180,190,200,0.4)"/>
-                        </g>
-                        <!-- Rain drops (hidden by default) -->
-                        <g id="weather-rain" opacity="0">
-                            <line x1="290" y1="60" x2="288" y2="72" class="raindrop rd1"/>
-                            <line x1="310" y1="55" x2="308" y2="67" class="raindrop rd2"/>
-                            <line x1="330" y1="62" x2="328" y2="74" class="raindrop rd3"/>
-                            <line x1="350" y1="58" x2="348" y2="70" class="raindrop rd4"/>
-                            <line x1="305" y1="75" x2="303" y2="87" class="raindrop rd5"/>
-                            <line x1="325" y1="70" x2="323" y2="82" class="raindrop rd6"/>
-                            <line x1="345" y1="76" x2="343" y2="88" class="raindrop rd7"/>
-                            <line x1="315" y1="88" x2="313" y2="100" class="raindrop rd8"/>
-                            <line x1="335" y1="84" x2="333" y2="96" class="raindrop rd9"/>
-                            <line x1="400" y1="72" x2="398" y2="84" class="raindrop rd10"/>
-                            <line x1="420" y1="68" x2="418" y2="80" class="raindrop rd11"/>
-                            <line x1="440" y1="75" x2="438" y2="87" class="raindrop rd12"/>
-                        </g>
-                    </g>
+                    <!-- (clouds and rain are placed in sky layer above) -->
                     <!-- Info text (bottom left) -->
                     <text id="scene-sunrise" x="10" y="170" fill="rgba(255,255,255,0.4)" font-size="10" font-family="sans-serif"></text>
                     <text id="scene-weather" x="10" y="185" fill="rgba(255,255,255,0.4)" font-size="10" font-family="sans-serif"></text>
@@ -284,6 +282,6 @@
     <span id="limits-since" style="display:none"></span>
     <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=28"></script>
+    <script src="/static/app.js?v=29"></script>
 </body>
 </html>
