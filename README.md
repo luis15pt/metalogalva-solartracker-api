@@ -162,13 +162,7 @@ The built-in web interface is a mobile-first single-page application featuring:
 
 The API publishes MQTT auto-discovery messages, so entities will automatically appear in Home Assistant.
 
-### Manual Configuration
-
-See [`homeassistant/configuration.yaml`](homeassistant/configuration.yaml) for example configuration.
-
-### Lovelace Dashboard
-
-See [`homeassistant/lovelace-card.yaml`](homeassistant/lovelace-card.yaml) for a ready-to-use dashboard card.
+To connect, add the MQTT integration in HA pointing to the Pi's IP on port 1883. If you already have an MQTT broker, configure a Mosquitto bridge in `mosquitto/config/mosquitto.conf`.
 
 ## Logging
 
@@ -241,18 +235,7 @@ Response packet structure (38+ bytes) with notable offsets:
 
 ### Protocol Capture Tool
 
-For debugging or capturing new commands:
-
-```bash
-# List available ports
-python scripts/serial_sniffer.py --list
-
-# Simple logging mode
-python scripts/serial_sniffer.py --port /dev/ttyUSB0 --log capture.txt
-
-# MITM mode (bridge between app and tracker)
-python scripts/serial_sniffer.py --port-a COM10 --port-b COM11 --log capture.txt
-```
+See [docs/protocol.md](docs/protocol.md) for full protocol documentation including packet formats, command bytes, and response parsing.
 
 ## Deployment Notes
 
@@ -294,11 +277,6 @@ metalogalva-solartracker-api/
 │       └── index.html      # Mobile-first Web UI
 ├── data/                   # Persistent storage (mounted volume)
 │   └── solartracker.log    # Rotating state change log
-├── scripts/
-│   └── serial_sniffer.py   # Protocol capture tool
-├── homeassistant/
-│   ├── configuration.yaml  # HA config example
-│   └── lovelace-card.yaml  # Dashboard card
 ├── mosquitto/
 │   └── config/
 │       └── mosquitto.conf  # MQTT broker config
