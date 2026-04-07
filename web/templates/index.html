@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=25">
+    <link rel="stylesheet" href="/static/style.css?v=26">
 </head>
 <body>
     <div class="container">
@@ -84,22 +84,20 @@
                     <!-- Sun disc -->
                     <circle id="scene-sun" cx="240" cy="70" r="14" fill="#ffc107" opacity="0"/>
                     <!-- Panel shadow on ground -->
-                    <polygon id="panel-shadow" points="50,160 190,160 200,185 40,185" fill="rgba(0,0,0,0.25)" opacity="0"/>
+                    <polygon id="panel-shadow" points="85,160 155,160 165,185 75,185" fill="rgba(0,0,0,0.25)" opacity="0"/>
                     <!-- Panel assembly (left side of scene) -->
-                    <!-- Post -->
-                    <line id="scene-post" x1="120" y1="150" x2="120" y2="108" stroke="#445566" stroke-width="4" stroke-linecap="round"/>
+                    <!-- Post (taller, thicker) -->
+                    <line id="scene-post" x1="120" y1="150" x2="120" y2="95" stroke="#445566" stroke-width="8" stroke-linecap="round"/>
                     <!-- Panel (rotates around mount point) -->
-                    <g id="scene-panel" transform="rotate(0, 120, 108)">
+                    <g id="scene-panel" transform="rotate(0, 120, 95)">
                         <!-- Panel as a thick line -->
-                        <line x1="50" y1="108" x2="190" y2="108" stroke="#2a6090" stroke-width="10" stroke-linecap="round"/>
+                        <line x1="85" y1="95" x2="155" y2="95" stroke="#2a6090" stroke-width="8" stroke-linecap="round"/>
                         <!-- Cell grid lines -->
-                        <line x1="75" y1="103" x2="75" y2="113" stroke="#3a80b0" stroke-width="0.5"/>
-                        <line x1="100" y1="103" x2="100" y2="113" stroke="#3a80b0" stroke-width="0.5"/>
-                        <line x1="120" y1="103" x2="120" y2="113" stroke="#3a80b0" stroke-width="0.5"/>
-                        <line x1="145" y1="103" x2="145" y2="113" stroke="#3a80b0" stroke-width="0.5"/>
-                        <line x1="170" y1="103" x2="170" y2="113" stroke="#3a80b0" stroke-width="0.5"/>
+                        <line x1="103" y1="91" x2="103" y2="99" stroke="#3a80b0" stroke-width="0.5"/>
+                        <line x1="120" y1="91" x2="120" y2="99" stroke="#3a80b0" stroke-width="0.5"/>
+                        <line x1="137" y1="91" x2="137" y2="99" stroke="#3a80b0" stroke-width="0.5"/>
                         <!-- Panel highlight -->
-                        <rect id="panel-highlight" x="50" y="103" width="140" height="10" rx="1" fill="rgba(150,200,255,0.15)" opacity="0"/>
+                        <rect id="panel-highlight" x="85" y="91" width="70" height="8" rx="1" fill="rgba(150,200,255,0.15)" opacity="0"/>
                     </g>
                 </svg>
             </div>
@@ -257,6 +255,6 @@
     <span id="limits-since" style="display:none"></span>
     <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=25"></script>
+    <script src="/static/app.js?v=26"></script>
 </body>
 </html>

@@ -308,7 +308,7 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
     // Scene panel starts horizontal. Rotate by panelV so visual matches gauge.
     // Positive = CW = right end up, surface faces right towards sun
     if (panelV !== null) {
-        panel.setAttribute('transform', `rotate(${panelV}, 120, 108)`);
+        panel.setAttribute('transform', `rotate(${panelV}, 120, 95)`);
     }
 
     // Panel highlight (reflection when sun is hitting it)
@@ -329,8 +329,8 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
         const gY = 160;
         const sY = gY + Math.max(4, 20 - sunAlt * 0.2);
         shadow.setAttribute('points',
-            `${50},${gY} ${190},${gY} ` +
-            `${190 + shadowSpread},${sY} ${50 + shadowSpread},${sY}`
+            `${85},${gY} ${155},${gY} ` +
+            `${155 + shadowSpread},${sY} ${85 + shadowSpread},${sY}`
         );
         shadow.setAttribute('opacity', Math.min(0.35, sunAlt / 25));
     } else {
