@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=31">
+    <link rel="stylesheet" href="/static/style.css?v=32">
 </head>
 <body>
     <div class="container">
@@ -131,24 +131,24 @@
                 <!-- Left: Gauges stacked -->
                 <div class="gauges-col">
                     <div class="gauge-row">
-                        <!-- Half Compass (S/E/W, south-facing) -->
+                        <!-- Compass (southern half only via viewBox crop) -->
                         <div class="gauge-container">
-                            <svg id="compass-gauge" viewBox="0 0 200 120" class="compass-svg half-compass">
-                                <path d="M 5 10 A 95 95 0 0 1 195 10" class="gauge-bg-arc"/>
+                            <svg id="compass-gauge" viewBox="0 95 200 110" class="compass-svg">
+                                <circle cx="100" cy="100" r="95" class="gauge-bg"/>
                                 <g id="compass-ticks"></g>
-                                <text x="100" y="118" class="cardinal">S</text>
-                                <text x="12" y="15" class="cardinal">W</text>
-                                <text x="188" y="15" class="cardinal">E</text>
+                                <text x="100" y="188" class="cardinal">S</text>
+                                <text x="12" y="105" class="cardinal">W</text>
+                                <text x="188" y="105" class="cardinal">E</text>
                                 <g id="sun-needle" class="needle sun-needle">
-                                    <line x1="100" y1="10" x2="100" y2="80"/>
-                                    <circle cx="100" cy="80" r="6" class="sun-dot"/>
+                                    <line x1="100" y1="100" x2="100" y2="30"/>
+                                    <circle cx="100" cy="30" r="6" class="sun-dot"/>
                                 </g>
                                 <g id="panel-needle" class="needle panel-needle">
-                                    <line x1="100" y1="10" x2="100" y2="75"/>
-                                    <polygon points="96,70 104,70 100,82"/>
+                                    <line x1="100" y1="100" x2="100" y2="35"/>
+                                    <polygon points="96,40 104,40 100,28"/>
                                 </g>
                                 <g id="compass-limits" class="limit-markers"></g>
-                                <circle cx="100" cy="10" r="4" class="center-dot"/>
+                                <circle cx="100" cy="100" r="4" class="center-dot"/>
                             </svg>
                             <div class="gauge-legend">
                                 <span class="legend-sun">&#9728; <span id="sun-azimuth">--</span>&deg;</span>
@@ -273,6 +273,6 @@
     <span id="limits-since" style="display:none"></span>
     <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=31"></script>
+    <script src="/static/app.js?v=32"></script>
 </body>
 </html>

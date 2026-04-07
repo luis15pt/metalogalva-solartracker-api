@@ -123,17 +123,15 @@ function connectWebSocket() {
 function initCompassTicks() {
     const g = document.getElementById('compass-ticks');
     if (!g) return;
-    // Half compass: E(90°) through S(180°) to W(270°), pivot at top (100,10)
-    const cx = 100, cy = 10, r1inner = 82, r2outer = 92;
-    for (let deg = 90; deg <= 270; deg += 10) {
+    for (let deg = 0; deg < 360; deg += 10) {
         const major = deg % 30 === 0;
         const rad = (deg - 90) * Math.PI / 180;
-        const r1 = major ? r1inner : r1inner + 5;
+        const r1 = major ? 82 : 87, r2 = 92;
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', cx + r1 * Math.cos(rad));
-        line.setAttribute('y1', cy + r1 * Math.sin(rad));
-        line.setAttribute('x2', cx + r2outer * Math.cos(rad));
-        line.setAttribute('y2', cy + r2outer * Math.sin(rad));
+        line.setAttribute('x1', 100 + r1 * Math.cos(rad));
+        line.setAttribute('y1', 100 + r1 * Math.sin(rad));
+        line.setAttribute('x2', 100 + r2 * Math.cos(rad));
+        line.setAttribute('y2', 100 + r2 * Math.sin(rad));
         line.setAttribute('stroke', major ? '#a0a0a0' : 'rgba(160,160,160,0.3)');
         line.setAttribute('stroke-width', major ? '1.5' : '0.75');
         g.appendChild(line);
@@ -347,7 +345,7 @@ function updateCompassLimits(hMin, hMax) {
     if (!g) return;
     g.innerHTML = '';
     if (hMin === null && hMax === null) return;
-    const cx = 100, cy = 10, r1 = 75, r2 = 93;
+    const cx = 100, cy = 100, r1 = 75, r2 = 93;
 
     function drawLine(angle) {
         const rad = (angle - 90) * Math.PI / 180;
