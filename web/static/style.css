@@ -432,7 +432,8 @@ header h1 {
 
 .dpad-btn.up { grid-column: 2; grid-row: 1; }
 .dpad-btn.left { grid-column: 1; grid-row: 2; }
-.dpad-btn.center { grid-column: 2; grid-row: 2; font-size: 0.7rem; font-weight: bold; background: var(--danger); border-color: var(--danger); }
+.dpad-btn.center { grid-column: 2; grid-row: 2; font-size: 1.2rem; font-weight: bold; }
+.dpad-btn.center.home { background: var(--success); border-color: var(--success); font-size: 1.4rem; }
 .dpad-btn.right { grid-column: 3; grid-row: 2; }
 .dpad-btn.down { grid-column: 2; grid-row: 3; }
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=39">
+    <link rel="stylesheet" href="/static/style.css?v=40">
 </head>
 <body>
     <div class="container">
@@ -193,7 +193,7 @@
                     <div class="dpad dpad-sm">
                         <button class="dpad-btn up" data-direction="up">&#9650;</button>
                         <button class="dpad-btn left" data-direction="left">&#9664;</button>
-                        <button class="dpad-btn center" id="stop-btn">STOP</button>
+                        <button class="dpad-btn center home" id="home-btn">&#8962;</button>
                         <button class="dpad-btn right" data-direction="right">&#9654;</button>
                         <button class="dpad-btn down" data-direction="down">&#9660;</button>
                     </div>
@@ -248,29 +248,19 @@
             </div>
         </section>
 
-        <!-- Debug (collapsible, collapsed) -->
-        <section class="card collapsible collapsed" id="debug-panel">
-            <div class="card-header clickable" data-toggle="debug-panel">
-                <h2>Debug</h2>
-                <span class="chevron">&#9660;</span>
-            </div>
-            <div class="card-body">
-                <div class="form-row" style="margin-bottom:12px">
-                    <button id="home-btn" class="btn btn-sm btn-ghost">&#8962; HOME</button>
-                    <button id="stow-btn" class="btn btn-sm btn-ghost">&#9660; STOW</button>
-                </div>
-                <div class="form-row">
-                    <input type="text" id="raw-hex" placeholder="Hex data (e.g. 01020304)">
-                    <button id="send-raw-btn" class="btn btn-sm btn-ghost">Send</button>
-                </div>
-                <pre id="debug-log"></pre>
-            </div>
-        </section>
 
         <footer>Solar Tracker API v0.1.0</footer>
     </div>
 
     <!-- Hidden elements for JS compat -->
+    <div style="display:none">
+        <button id="stop-btn"></button>
+        <button id="stow-btn"></button>
+        <button id="send-raw-btn"></button>
+        <input id="raw-hex">
+        <pre id="debug-log"></pre>
+        <div id="debug-panel"></div>
+    </div>
     <input type="hidden" id="max-wind-input" value="0">
     <button id="set-wind-btn" style="display:none"></button>
     <span id="limit-h-min" style="display:none"></span>
@@ -280,6 +270,6 @@
     <span id="limits-since" style="display:none"></span>
     <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=39"></script>
+    <script src="/static/app.js?v=40"></script>
 </body>
 </html>
