@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=12">
+    <link rel="stylesheet" href="/static/style.css?v=13">
 </head>
 <body>
     <div class="container">
@@ -47,38 +47,60 @@
                             <stop id="sky-bottom" offset="100%" stop-color="#1a2940"/>
                         </linearGradient>
                         <radialGradient id="sun-glow" cx="50%" cy="50%" r="50%">
-                            <stop offset="0%" stop-color="rgba(255,193,7,0.6)"/>
-                            <stop offset="40%" stop-color="rgba(255,193,7,0.2)"/>
+                            <stop offset="0%" stop-color="rgba(255,193,7,0.5)"/>
+                            <stop offset="30%" stop-color="rgba(255,193,7,0.15)"/>
                             <stop offset="100%" stop-color="rgba(255,193,7,0)"/>
                         </radialGradient>
                         <linearGradient id="ground-gradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stop-color="#1a3020"/>
                             <stop offset="100%" stop-color="#0a1810"/>
                         </linearGradient>
+                        <!-- Sun rays for daytime -->
+                        <radialGradient id="sun-rays" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="rgba(255,220,100,0.3)"/>
+                            <stop offset="100%" stop-color="rgba(255,220,100,0)"/>
+                        </radialGradient>
                     </defs>
                     <!-- Sky -->
-                    <rect id="sky-rect" x="0" y="0" width="480" height="140" fill="url(#sky-gradient)"/>
-                    <!-- Ground -->
-                    <rect x="0" y="140" width="480" height="60" fill="url(#ground-gradient)"/>
-                    <!-- Horizon line -->
-                    <line x1="0" y1="140" x2="480" y2="140" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-                    <!-- Sun glow -->
-                    <circle id="scene-sun-glow" cx="240" cy="70" r="40" fill="url(#sun-glow)" opacity="0"/>
-                    <!-- Sun disc -->
-                    <circle id="scene-sun" cx="240" cy="70" r="12" fill="#ffc107" opacity="0"/>
-                    <!-- Panel shadow on ground -->
-                    <polygon id="panel-shadow" points="220,155 260,155 255,180 225,180" fill="rgba(0,0,0,0.3)" opacity="0"/>
-                    <!-- Panel post -->
-                    <line x1="240" y1="140" x2="240" y2="115" stroke="#556677" stroke-width="3" stroke-linecap="round"/>
-                    <!-- Solar panel -->
-                    <g id="scene-panel" transform="rotate(0, 240, 115)">
-                        <rect x="205" y="110" width="70" height="5" rx="2" fill="#2a6090" stroke="#3a80b0" stroke-width="1"/>
-                        <line x1="222" y1="110" x2="222" y2="115" stroke="#3a80b0" stroke-width="0.5"/>
-                        <line x1="240" y1="110" x2="240" y2="115" stroke="#3a80b0" stroke-width="0.5"/>
-                        <line x1="258" y1="110" x2="258" y2="115" stroke="#3a80b0" stroke-width="0.5"/>
+                    <rect x="0" y="0" width="480" height="150" fill="url(#sky-gradient)"/>
+                    <!-- Stars (visible at night) -->
+                    <g id="scene-stars" opacity="0">
+                        <circle cx="50" cy="20" r="1" fill="white"/><circle cx="120" cy="35" r="0.8" fill="white"/>
+                        <circle cx="200" cy="15" r="1.2" fill="white"/><circle cx="310" cy="28" r="0.8" fill="white"/>
+                        <circle cx="380" cy="12" r="1" fill="white"/><circle cx="440" cy="40" r="0.7" fill="white"/>
+                        <circle cx="80" cy="55" r="0.6" fill="white"/><circle cx="260" cy="50" r="0.9" fill="white"/>
+                        <circle cx="420" cy="60" r="0.8" fill="white"/><circle cx="160" cy="65" r="0.7" fill="white"/>
                     </g>
-                    <!-- Scene readout -->
-                    <text id="scene-readout" x="12" y="190" fill="rgba(255,255,255,0.4)" font-size="10" font-family="monospace"></text>
+                    <!-- E / W labels on horizon -->
+                    <text x="15" y="148" fill="rgba(255,255,255,0.2)" font-size="10" font-family="sans-serif">E</text>
+                    <text x="462" y="148" fill="rgba(255,255,255,0.2)" font-size="10" font-family="sans-serif">W</text>
+                    <!-- Ground -->
+                    <rect x="0" y="150" width="480" height="50" fill="url(#ground-gradient)"/>
+                    <!-- Horizon line -->
+                    <line x1="0" y1="150" x2="480" y2="150" stroke="rgba(255,255,255,0.12)" stroke-width="0.5"/>
+                    <!-- Sun glow -->
+                    <circle id="scene-sun-glow" cx="240" cy="70" r="50" fill="url(#sun-glow)" opacity="0"/>
+                    <!-- Sun rays -->
+                    <circle id="scene-sun-rays" cx="240" cy="70" r="30" fill="url(#sun-rays)" opacity="0"/>
+                    <!-- Sun disc -->
+                    <circle id="scene-sun" cx="240" cy="70" r="14" fill="#ffc107" opacity="0"/>
+                    <!-- Panel shadow on ground -->
+                    <polygon id="panel-shadow" points="350,160 410,160 420,185 340,185" fill="rgba(0,0,0,0.25)" opacity="0"/>
+                    <!-- Panel assembly (right side of scene) -->
+                    <!-- Post -->
+                    <line id="scene-post" x1="380" y1="150" x2="380" y2="120" stroke="#445566" stroke-width="3" stroke-linecap="round"/>
+                    <!-- Panel (rotates around mount point) -->
+                    <g id="scene-panel" transform="rotate(0, 380, 120)">
+                        <!-- Panel face -->
+                        <rect x="340" y="115" width="80" height="6" rx="2" fill="#2a6090" stroke="#3a80b0" stroke-width="0.8"/>
+                        <!-- Cell lines -->
+                        <line x1="356" y1="115" x2="356" y2="121" stroke="#3a80b0" stroke-width="0.4"/>
+                        <line x1="372" y1="115" x2="372" y2="121" stroke="#3a80b0" stroke-width="0.4"/>
+                        <line x1="388" y1="115" x2="388" y2="121" stroke="#3a80b0" stroke-width="0.4"/>
+                        <line x1="404" y1="115" x2="404" y2="121" stroke="#3a80b0" stroke-width="0.4"/>
+                        <!-- Panel highlight (sun reflection) -->
+                        <rect id="panel-highlight" x="340" y="115" width="80" height="6" rx="2" fill="rgba(255,255,255,0.1)" opacity="0"/>
+                    </g>
                 </svg>
             </div>
 
@@ -248,6 +270,6 @@
     <input type="hidden" id="max-wind-input" value="0">
     <button id="set-wind-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=12"></script>
+    <script src="/static/app.js?v=13"></script>
 </body>
 </html>
