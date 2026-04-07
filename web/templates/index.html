@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=34">
+    <link rel="stylesheet" href="/static/style.css?v=35">
 </head>
 <body>
     <div class="container">
@@ -133,13 +133,19 @@
                     <div class="gauge-row">
                         <!-- Compass (southern half only via viewBox crop) -->
                         <div class="gauge-container">
-                            <svg id="compass-gauge" viewBox="0 92 200 112" class="compass-svg">
-                                <!-- Southern half: semicircle from E through S to W -->
-                                <path d="M 5 100 A 95 95 0 0 1 195 100 Z" class="gauge-bg-semi"/>
+                            <svg id="compass-gauge" viewBox="0 90 200 115" class="compass-svg" style="overflow:hidden">
+                                <defs>
+                                    <clipPath id="south-half">
+                                        <rect x="0" y="95" width="200" height="110"/>
+                                    </clipPath>
+                                </defs>
+                                <g clip-path="url(#south-half)">
+                                    <circle cx="100" cy="100" r="95" class="gauge-bg"/>
+                                </g>
                                 <g id="compass-ticks"></g>
                                 <text x="100" y="188" class="cardinal">S</text>
-                                <text x="12" y="105" class="cardinal">W</text>
-                                <text x="188" y="105" class="cardinal">E</text>
+                                <text x="18" y="112" class="cardinal">W</text>
+                                <text x="182" y="112" class="cardinal">E</text>
                                 <g id="sun-needle" class="needle sun-needle">
                                     <line x1="100" y1="100" x2="100" y2="30"/>
                                     <circle cx="100" cy="30" r="6" class="sun-dot"/>
@@ -274,6 +280,6 @@
     <span id="limits-since" style="display:none"></span>
     <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=34"></script>
+    <script src="/static/app.js?v=35"></script>
 </body>
 </html>
