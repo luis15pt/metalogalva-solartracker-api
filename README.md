@@ -16,6 +16,12 @@ Open `http://<pi-ip>:8000` in your browser.
 
 > Pre-built arm64 images are pulled from GHCR automatically. No local build needed.
 
+## Screenshots
+
+| Night Mode |
+|:---:|
+| ![Night Mode](docs/screenshots/night-mode.png) |
+
 ## Features
 
 - **Web UI** — Mobile-first dashboard with animated sky scene (sun/moon, weather, rain/clouds), compass and altitude gauges, d-pad controls
