@@ -16,6 +16,32 @@ Open `http://<pi-ip>:8000` in your browser.
 
 > Pre-built arm64 images are pulled from GHCR automatically. No local build needed.
 
+## Hardware Setup
+
+You need a **USB-to-RS232 serial adapter** connected between the Raspberry Pi and the solar tracker's COM port.
+
+**Tested adapters**: FTDI FT232 (recommended), CH340, CP2102
+
+**Wiring**: Adapter TX → Tracker RX, Adapter RX → Tracker TX, GND → GND. The protocol uses RS-485 half-duplex at 9600 baud with RTS toggling.
+
+**Verify on Linux**:
+```bash
+# Check the adapter is detected
+lsusb | grep -iE 'ftdi|ch340|cp210|serial'
+
+# Check the device node
+ls /dev/ttyUSB*
+
+# Check permissions (need dialout group)
+stat -c '%G %a' /dev/ttyUSB0
+# Should show: dialout 660
+
+# Add your user to dialout if needed
+sudo usermod -aG dialout $USER
+```
+
+The Pi Zero 2W only has one USB data port (the inner one). If you need both WiFi and serial, use a USB-OTG hub or a female-to-female USB adapter as a passthrough.
+
 ## Screenshots
 
 <details open>
