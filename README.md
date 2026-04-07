@@ -18,9 +18,19 @@ Open `http://<pi-ip>:8000` in your browser.
 
 ## Screenshots
 
-| Night Mode |
-|:---:|
-| ![Night Mode](docs/screenshots/night-mode.png) |
+<details open>
+<summary>Night Mode</summary>
+
+![Night Mode](docs/screenshots/night-mode.png)
+
+</details>
+
+<details>
+<summary>Day Mode</summary>
+
+*Screenshot coming soon*
+
+</details>
 
 ## Features
 
