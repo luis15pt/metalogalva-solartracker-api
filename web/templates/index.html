@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=13">
+    <link rel="stylesheet" href="/static/style.css?v=14">
 </head>
 <body>
     <div class="container">
@@ -133,14 +133,13 @@
                 <!-- Altitude -->
                 <div class="gauge-container">
                     <svg id="altitude-gauge" viewBox="0 0 200 200" class="altitude-svg">
-                        <path d="M 15 105 A 85 85 0 0 1 185 105" class="arc-bg"/>
-                        <path d="M 15 105 A 85 85 0 0 0 100 190" class="arc-bg-below"/>
-                        <line x1="12" y1="105" x2="188" y2="105" class="horizon-line"/>
+                        <path d="M 15 105 A 85 85 0 0 1 100 20" class="arc-bg"/>
+                        <path d="M 15 105 A 85 85 0 0 0 40 165" class="arc-bg-below"/>
+                        <line x1="12" y1="105" x2="105" y2="105" class="horizon-line"/>
                         <g id="altitude-ticks"></g>
                         <g id="altitude-ticks-below"></g>
                         <text x="10" y="100" class="tick-label">0&deg;</text>
                         <text x="100" y="12" class="tick-label" text-anchor="middle">90&deg;</text>
-                        <text x="190" y="100" class="tick-label" text-anchor="end">0&deg;</text>
                         <g id="altitude-limits" class="limit-markers"></g>
                         <g id="sun-alt-needle-group">
                             <line id="sun-alt-needle" x1="100" y1="105" x2="15" y2="105" class="needle-line sun-color"/>
@@ -270,6 +269,6 @@
     <input type="hidden" id="max-wind-input" value="0">
     <button id="set-wind-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=13"></script>
+    <script src="/static/app.js?v=14"></script>
 </body>
 </html>

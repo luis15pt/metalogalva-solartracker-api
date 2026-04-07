@@ -143,7 +143,7 @@ function initAltitudeTicks() {
     if (!g) return;
     const cx = 100, cy = 105, r = 85;
     for (let alt = 0; alt <= 90; alt += 15) {
-        const angle = 180 - (alt * 180 / 90);
+        const angle = 180 - alt;
         const rad = angle * Math.PI / 180;
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         line.setAttribute('x1', cx + (r-5)*Math.cos(rad));
@@ -172,7 +172,7 @@ function initAltitudeTicksBelow() {
     if (!g) return;
     const cx = 100, cy = 105, r = 85;
     for (let alt = -15; alt >= -45; alt -= 15) {
-        const angle = 180 - (alt * 180 / 90);
+        const angle = 180 - alt;
         const rad = angle * Math.PI / 180;
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         line.setAttribute('x1', cx + (r-5)*Math.cos(rad));
@@ -207,7 +207,7 @@ function updateAltitudeGauge(sunAlt, panelVert) {
     function toPoint(alt, min) {
         if (alt === null || alt === undefined) return null;
         const c = Math.max(min, Math.min(90, alt));
-        const angle = 180 - (c * 180 / 90);
+        const angle = 180 - c;
         const rad = angle * Math.PI / 180;
         return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
     }
@@ -305,8 +305,9 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
 
     // Panel tilt — pivot at (380, 120)
     // panelV: 0°=vertical/upright, 90°=flat/horizontal
+    // Negative rotation tilts panel face towards the sun (left)
     if (panelV !== null) {
-        const tiltAngle = 90 - panelV;
+        const tiltAngle = panelV - 90;
         panel.setAttribute('transform', `rotate(${tiltAngle}, 380, 118)`);
     }
 
@@ -382,7 +383,7 @@ function updateAltitudeLimits(vMin, vMax) {
 
     function drawTick(alt) {
         const c = Math.max(0, Math.min(90, alt));
-        const angle = 180 - (c * 180 / 90);
+        const angle = 180 - c;
         const rad = angle * Math.PI / 180;
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         line.setAttribute('x1', cx + (r-8)*Math.cos(rad));
@@ -398,8 +399,8 @@ function updateAltitudeLimits(vMin, vMax) {
 
     if (vMin !== null && vMax !== null) {
         const rArc = 80;
-        const sa = 180 - (Math.max(0, Math.min(90, vMin)) * 180 / 90);
-        const ea = 180 - (Math.max(0, Math.min(90, vMax)) * 180 / 90);
+        const sa = 180 - Math.max(0, Math.min(90, vMin));
+        const ea = 180 - Math.max(0, Math.min(90, vMax));
         const sr = sa * Math.PI / 180, er = ea * Math.PI / 180;
         const arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         arc.setAttribute('d', `M ${100 + rArc*Math.cos(sr)} ${105 - rArc*Math.sin(sr)} A ${rArc} ${rArc} 0 ${Math.abs(sa-ea) > 180 ? 1 : 0} 0 ${100 + rArc*Math.cos(er)} ${105 - rArc*Math.sin(er)}`);
