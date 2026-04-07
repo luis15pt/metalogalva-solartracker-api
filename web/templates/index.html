@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=24">
+    <link rel="stylesheet" href="/static/style.css?v=25">
 </head>
 <body>
     <div class="container">
@@ -34,7 +34,6 @@
                 <div class="tracker-info">
                     <span id="tracker-date">--/--/----</span>
                     <span id="tracker-time">--:--:--</span>
-                    <button id="sync-clock-btn" class="btn btn-sm btn-ghost" title="Sync tracker clock">&#8635;</button>
                 </div>
             </div>
             <!-- Scene Visualization -->
@@ -184,37 +183,13 @@
             </div>
         </section>
 
-        <!-- Info (collapsible) -->
+        <!-- Alarms -->
         <section class="card collapsible" id="info-panel">
             <div class="card-header clickable" data-toggle="info-panel">
-                <h2>Info</h2>
+                <h2>Alarm History</h2>
                 <span class="chevron">&#9660;</span>
             </div>
             <div class="card-body">
-                <div class="info-grid">
-                    <div class="info-item">
-                        <label>Firmware</label>
-                        <span id="firmware-version">--</span>
-                    </div>
-                    <div class="info-item">
-                        <label>Horizontal Range</label>
-                        <span><span id="limit-h-min">--</span>&deg; &ndash; <span id="limit-h-max">--</span>&deg;</span>
-                    </div>
-                    <div class="info-item">
-                        <label>Vertical Range</label>
-                        <span><span id="limit-v-min">--</span>&deg; &ndash; <span id="limit-v-max">--</span>&deg;</span>
-                    </div>
-                    <div class="info-item">
-                        <label>Tracking Since</label>
-                        <span id="limits-since">--</span>
-                    </div>
-                </div>
-                <div class="info-actions">
-                    <button id="reset-limits-btn" class="btn btn-sm btn-ghost">Reset Limits</button>
-                </div>
-
-                <!-- Alarm History -->
-                <h3>Alarm History</h3>
                 <ul class="alarm-history" id="alarm-history">
                     <li class="no-history">No alarm history</li>
                 </ul>
@@ -245,6 +220,12 @@
                     <button id="connect-btn" class="btn btn-success">Connect</button>
                     <button id="disconnect-btn" class="btn btn-danger" disabled>Disconnect</button>
                 </div>
+                <div class="form-row">
+                    <button id="sync-clock-btn" class="btn btn-sm btn-ghost">&#8635; Sync Clock</button>
+                </div>
+                <div style="margin-top:8px;color:var(--text-dim);font-size:0.8rem">
+                    Firmware: <span id="firmware-version">--</span>
+                </div>
             </div>
         </section>
 
@@ -266,10 +247,16 @@
         <footer>Solar Tracker API v0.1.0</footer>
     </div>
 
-    <!-- Hidden elements for wind (keep for API compat) -->
+    <!-- Hidden elements for JS compat -->
     <input type="hidden" id="max-wind-input" value="0">
     <button id="set-wind-btn" style="display:none"></button>
+    <span id="limit-h-min" style="display:none"></span>
+    <span id="limit-h-max" style="display:none"></span>
+    <span id="limit-v-min" style="display:none"></span>
+    <span id="limit-v-max" style="display:none"></span>
+    <span id="limits-since" style="display:none"></span>
+    <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=24"></script>
+    <script src="/static/app.js?v=25"></script>
 </body>
 </html>
