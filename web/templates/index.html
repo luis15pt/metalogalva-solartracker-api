@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=33">
+    <link rel="stylesheet" href="/static/style.css?v=34">
 </head>
 <body>
     <div class="container">
@@ -133,8 +133,9 @@
                     <div class="gauge-row">
                         <!-- Compass (southern half only via viewBox crop) -->
                         <div class="gauge-container">
-                            <svg id="compass-gauge" viewBox="0 88 200 118" class="compass-svg">
-                                <circle cx="100" cy="100" r="95" class="gauge-bg"/>
+                            <svg id="compass-gauge" viewBox="0 92 200 112" class="compass-svg">
+                                <!-- Southern half: semicircle from E through S to W -->
+                                <path d="M 5 100 A 95 95 0 0 1 195 100 Z" class="gauge-bg-semi"/>
                                 <g id="compass-ticks"></g>
                                 <text x="100" y="188" class="cardinal">S</text>
                                 <text x="12" y="105" class="cardinal">W</text>
@@ -273,6 +274,6 @@
     <span id="limits-since" style="display:none"></span>
     <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=33"></script>
+    <script src="/static/app.js?v=34"></script>
 </body>
 </html>
