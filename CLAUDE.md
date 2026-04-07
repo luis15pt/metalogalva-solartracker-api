@@ -67,6 +67,14 @@ docker compose up -d
 - `SBFSPOT_DB` — Path to SBFspot SQLite DB (default: `/data/SBFspot.db`)
 - `LOG_LEVEL` — Python log level (default: `INFO`)
 
+## Serial Port Access
+
+The container runs as non-root (`appuser`). To access `/dev/ttyUSB0`, the container needs the `dialout` group. The `group_add` in docker-compose must match the host's dialout GID:
+```bash
+stat -c '%g' /dev/ttyUSB0  # Check the GID on your system
+```
+Common values: `20` (Raspberry Pi OS), `46` (some Debian/Ubuntu). Update `group_add` in docker-compose.yml accordingly.
+
 ## Common Issues
 
 - **WebSocket disconnect kills serial**: Fixed — `broadcast_status()` catches `ValueError` on list removal race condition, `_read_loop` catches all exceptions to stay alive
