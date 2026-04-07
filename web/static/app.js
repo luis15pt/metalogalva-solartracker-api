@@ -303,12 +303,12 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
         }
     }
 
-    // Panel tilt — pivot at (380, 118)
+    // Panel tilt — pivot at (100, 118)
     // panelV: 0°=vertical/upright, 90°=flat/horizontal
-    // Positive rotation (clockwise) tilts left side up to face the sun
+    // Negative rotation (CCW) tilts right side up to face sun on the right
     if (panelV !== null) {
-        const tiltAngle = 90 - panelV;
-        panel.setAttribute('transform', `rotate(${tiltAngle}, 380, 118)`);
+        const tiltAngle = panelV - 90;
+        panel.setAttribute('transform', `rotate(${tiltAngle}, 100, 118)`);
     }
 
     // Panel highlight (reflection when sun is hitting it)
@@ -323,14 +323,14 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
         // Shadow stretches away from the sun
         const shadowLen = Math.max(8, (70 - sunAlt) * 0.6);
         // Sun to the left of panel = shadow goes right, and vice versa
-        const panelCX = 380;
+        const panelCX = 100;
         const shadowDir = sunX > panelCX ? 1 : -1;
         const shadowSpread = shadowDir * shadowLen;
         const gY = 160; // ground surface
         const sY = gY + Math.max(4, 20 - sunAlt * 0.2);
         shadow.setAttribute('points',
-            `${340},${gY} ${420},${gY} ` +
-            `${420 + shadowSpread},${sY} ${340 + shadowSpread},${sY}`
+            `${60},${gY} ${140},${gY} ` +
+            `${140 + shadowSpread},${sY} ${60 + shadowSpread},${sY}`
         );
         shadow.setAttribute('opacity', Math.min(0.35, sunAlt / 25));
     } else {
