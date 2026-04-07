@@ -537,6 +537,64 @@ setInterval(() => {
 }, 1000);
 
 // =============================================================================
+// Weather (Open-Meteo, free, no API key)
+// =============================================================================
+
+const WEATHER_LAT = 40.54;
+const WEATHER_LON = -8.70;
+let weatherCache = null;
+
+const WMO_CODES = {
+    0: 'Clear', 1: 'Mostly Clear', 2: 'Partly Cloudy', 3: 'Overcast',
+    45: 'Fog', 48: 'Rime Fog', 51: 'Light Drizzle', 53: 'Drizzle', 55: 'Heavy Drizzle',
+    61: 'Light Rain', 63: 'Rain', 65: 'Heavy Rain', 71: 'Light Snow', 73: 'Snow', 75: 'Heavy Snow',
+    80: 'Rain Showers', 81: 'Mod. Showers', 82: 'Heavy Showers', 95: 'Thunderstorm',
+};
+
+async function fetchWeather() {
+    try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}&current=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset&timezone=auto&forecast_days=1`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        weatherCache = {
+            temp: data.current?.temperature_2m,
+            code: data.current?.weather_code,
+            wind: data.current?.wind_speed_10m,
+            sunrise: data.daily?.sunrise?.[0],
+            sunset: data.daily?.sunset?.[0],
+        };
+        updateWeatherDisplay();
+    } catch (e) {
+        console.warn('Weather fetch failed:', e);
+    }
+}
+
+function updateWeatherDisplay() {
+    if (!weatherCache) return;
+
+    const sunriseEl = document.getElementById('scene-sunrise');
+    const weatherEl = document.getElementById('scene-weather');
+
+    if (sunriseEl && weatherCache.sunrise && weatherCache.sunset) {
+        const sr = new Date(weatherCache.sunrise);
+        const ss = new Date(weatherCache.sunset);
+        const fmt = d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        sunriseEl.textContent = `\u2600 ${fmt(sr)}  \u263D ${fmt(ss)}`;
+    }
+
+    if (weatherEl) {
+        const desc = WMO_CODES[weatherCache.code] || '';
+        const temp = weatherCache.temp !== undefined ? `${Math.round(weatherCache.temp)}\u00B0C` : '';
+        const wind = weatherCache.wind !== undefined ? `${Math.round(weatherCache.wind)} km/h` : '';
+        weatherEl.textContent = `${desc}  ${temp}  \uD83D\uDCA8 ${wind}`;
+    }
+}
+
+// Fetch weather on load and every 15 minutes
+fetchWeather();
+setInterval(fetchWeather, 15 * 60 * 1000);
+
+// =============================================================================
 // Actions
 // =============================================================================
 

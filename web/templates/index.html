@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=26">
+    <link rel="stylesheet" href="/static/style.css?v=27">
 </head>
 <body>
     <div class="container">
@@ -86,8 +86,8 @@
                     <!-- Panel shadow on ground -->
                     <polygon id="panel-shadow" points="85,160 155,160 165,185 75,185" fill="rgba(0,0,0,0.25)" opacity="0"/>
                     <!-- Panel assembly (left side of scene) -->
-                    <!-- Post (taller, thicker) -->
-                    <line id="scene-post" x1="120" y1="150" x2="120" y2="95" stroke="#445566" stroke-width="8" stroke-linecap="round"/>
+                    <!-- Post -->
+                    <line id="scene-post" x1="120" y1="150" x2="120" y2="95" stroke="#445566" stroke-width="4" stroke-linecap="round"/>
                     <!-- Panel (rotates around mount point) -->
                     <g id="scene-panel" transform="rotate(0, 120, 95)">
                         <!-- Panel as a thick line -->
@@ -99,6 +99,10 @@
                         <!-- Panel highlight -->
                         <rect id="panel-highlight" x="85" y="91" width="70" height="8" rx="1" fill="rgba(150,200,255,0.15)" opacity="0"/>
                     </g>
+                    <!-- Sunrise/Sunset text -->
+                    <text id="scene-sunrise" x="480" y="148" fill="rgba(255,200,50,0.6)" font-size="9" font-family="sans-serif" text-anchor="end"></text>
+                    <!-- Weather text -->
+                    <text id="scene-weather" x="480" y="192" fill="rgba(255,255,255,0.4)" font-size="9" font-family="sans-serif" text-anchor="end"></text>
                 </svg>
             </div>
 
@@ -255,6 +259,6 @@
     <span id="limits-since" style="display:none"></span>
     <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=26"></script>
+    <script src="/static/app.js?v=27"></script>
 </body>
 </html>
