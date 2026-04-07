@@ -18,7 +18,7 @@ SBFSPOT_DB = os.environ.get("SBFSPOT_DB", "/data/SBFspot.db")
 
 def _get_db() -> sqlite3.Connection:
     """Open a read-only connection to the SBFspot database."""
-    db_uri = f"file:{SBFSPOT_DB}?mode=ro"
+    db_uri = f"file:{SBFSPOT_DB}?mode=ro&immutable=1"
     try:
         conn = sqlite3.connect(db_uri, uri=True)
         conn.row_factory = sqlite3.Row
@@ -60,7 +60,7 @@ async def inverter_status() -> dict[str, Any]:
 
         if spot is not None:
             current_power = (spot["Pac1"] or 0) + (spot["Pac2"] or 0) + (spot["Pac3"] or 0)
-            temperature = spot["Temperature"] / 100.0 if spot["Temperature"] else None
+            temperature = spot["Temperature"] if spot["Temperature"] else None
             last_update = spot["TimeStamp"]
             status = spot["Status"]
 
