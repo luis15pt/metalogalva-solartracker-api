@@ -123,15 +123,17 @@ function connectWebSocket() {
 function initCompassTicks() {
     const g = document.getElementById('compass-ticks');
     if (!g) return;
-    for (let deg = 0; deg < 360; deg += 10) {
+    // Half compass: E(90°) through S(180°) to W(270°), pivot at top (100,10)
+    const cx = 100, cy = 10, r1inner = 82, r2outer = 92;
+    for (let deg = 90; deg <= 270; deg += 10) {
         const major = deg % 30 === 0;
         const rad = (deg - 90) * Math.PI / 180;
-        const r1 = major ? 82 : 87, r2 = 92;
+        const r1 = major ? r1inner : r1inner + 5;
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', 100 + r1 * Math.cos(rad));
-        line.setAttribute('y1', 100 + r1 * Math.sin(rad));
-        line.setAttribute('x2', 100 + r2 * Math.cos(rad));
-        line.setAttribute('y2', 100 + r2 * Math.sin(rad));
+        line.setAttribute('x1', cx + r1 * Math.cos(rad));
+        line.setAttribute('y1', cy + r1 * Math.sin(rad));
+        line.setAttribute('x2', cx + r2outer * Math.cos(rad));
+        line.setAttribute('y2', cy + r2outer * Math.sin(rad));
         line.setAttribute('stroke', major ? '#a0a0a0' : 'rgba(160,160,160,0.3)');
         line.setAttribute('stroke-width', major ? '1.5' : '0.75');
         g.appendChild(line);
@@ -197,6 +199,7 @@ function initAltitudeTicksBelow() {
 function updateCompass(sunAzi, panelAzi) {
     const sunN = document.getElementById('sun-needle');
     const panelN = document.getElementById('panel-needle');
+    // Half compass: pivot at top, 180°=straight down(S), 90°=right(E), 270°=left(W)
     if (sunN && sunAzi !== null) sunN.style.transform = `rotate(${sunAzi}deg)`;
     if (panelN && panelAzi !== null) panelN.style.transform = `rotate(${panelAzi}deg)`;
 }
@@ -249,10 +252,11 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
     // Horizon at y=150. Sky 0-150, ground 150-200.
     // Sun arcs left to right: East(90°)=left(40), South(180°)=center(240), West(270°)=right(440)
     // Map azimuth 60-300° to x 20-460 (visible range)
-    let sunX = 240;
+    let sunX = 300;
     if (sunAzi !== null) {
-        // East(90°)=right, South(180°)=center, West(270°)=left — matches compass
-        sunX = 460 - ((Math.max(60, Math.min(300, sunAzi)) - 60) / 240) * 440;
+        // E(90°)=right(460), S(180°)=center(300), W(270°)=left(140)
+        // Shifted right to keep sun away from panel on the far left
+        sunX = 460 - ((Math.max(90, Math.min(270, sunAzi)) - 90) / 180) * 320;
     }
     // Altitude to Y: 0°=horizon(150), 90°=top(10), -15°=below(185)
     const altClamped = sunAlt !== null ? Math.max(-15, Math.min(90, sunAlt)) : 0;
@@ -308,7 +312,7 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
     // Scene panel starts horizontal. Rotate by panelV so visual matches gauge.
     // Positive = CW = right end up, surface faces right towards sun
     if (panelV !== null) {
-        panel.setAttribute('transform', `rotate(${panelV}, 120, 95)`);
+        panel.setAttribute('transform', `rotate(${panelV}, 60, 95)`);
     }
 
     // Panel highlight (reflection when sun is hitting it)
@@ -323,14 +327,14 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
         // Shadow stretches away from the sun
         const shadowLen = Math.max(8, (70 - sunAlt) * 0.6);
         // Sun to the left of panel = shadow goes right, and vice versa
-        const panelCX = 120;
+        const panelCX = 60;
         const shadowDir = sunX > panelCX ? 1 : -1;
         const shadowSpread = shadowDir * shadowLen;
         const gY = 160;
         const sY = gY + Math.max(4, 20 - sunAlt * 0.2);
         shadow.setAttribute('points',
-            `${85},${gY} ${155},${gY} ` +
-            `${155 + shadowSpread},${sY} ${85 + shadowSpread},${sY}`
+            `${25},${gY} ${95},${gY} ` +
+            `${95 + shadowSpread},${sY} ${25 + shadowSpread},${sY}`
         );
         shadow.setAttribute('opacity', Math.min(0.35, sunAlt / 25));
     } else {
@@ -343,7 +347,7 @@ function updateCompassLimits(hMin, hMax) {
     if (!g) return;
     g.innerHTML = '';
     if (hMin === null && hMax === null) return;
-    const cx = 100, cy = 100, r1 = 75, r2 = 93;
+    const cx = 100, cy = 10, r1 = 75, r2 = 93;
 
     function drawLine(angle) {
         const rad = (angle - 90) * Math.PI / 180;

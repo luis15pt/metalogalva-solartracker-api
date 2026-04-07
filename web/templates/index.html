@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=30">
+    <link rel="stylesheet" href="/static/style.css?v=31">
 </head>
 <body>
     <div class="container">
@@ -107,20 +107,17 @@
                         <line x1="440" y1="75" x2="438" y2="87" class="raindrop rd12"/>
                     </g>
                     <!-- Panel shadow on ground -->
-                    <polygon id="panel-shadow" points="85,160 155,160 165,185 75,185" fill="rgba(0,0,0,0.25)" opacity="0"/>
-                    <!-- Panel assembly (left side of scene) -->
+                    <polygon id="panel-shadow" points="25,160 95,160 105,185 15,185" fill="rgba(0,0,0,0.25)" opacity="0"/>
+                    <!-- Panel assembly (far left) -->
                     <!-- Post -->
-                    <line id="scene-post" x1="120" y1="150" x2="120" y2="95" stroke="#445566" stroke-width="4" stroke-linecap="round"/>
+                    <line id="scene-post" x1="60" y1="150" x2="60" y2="95" stroke="#445566" stroke-width="4" stroke-linecap="round"/>
                     <!-- Panel (rotates around mount point) -->
-                    <g id="scene-panel" transform="rotate(0, 120, 95)">
-                        <!-- Panel as a thick line -->
-                        <line x1="85" y1="95" x2="155" y2="95" stroke="#2a6090" stroke-width="8" stroke-linecap="round"/>
-                        <!-- Cell grid lines -->
-                        <line x1="103" y1="91" x2="103" y2="99" stroke="#3a80b0" stroke-width="0.5"/>
-                        <line x1="120" y1="91" x2="120" y2="99" stroke="#3a80b0" stroke-width="0.5"/>
-                        <line x1="137" y1="91" x2="137" y2="99" stroke="#3a80b0" stroke-width="0.5"/>
-                        <!-- Panel highlight -->
-                        <rect id="panel-highlight" x="85" y="91" width="70" height="8" rx="1" fill="rgba(150,200,255,0.15)" opacity="0"/>
+                    <g id="scene-panel" transform="rotate(0, 60, 95)">
+                        <line x1="25" y1="95" x2="95" y2="95" stroke="#2a6090" stroke-width="8" stroke-linecap="round"/>
+                        <line x1="43" y1="91" x2="43" y2="99" stroke="#3a80b0" stroke-width="0.5"/>
+                        <line x1="60" y1="91" x2="60" y2="99" stroke="#3a80b0" stroke-width="0.5"/>
+                        <line x1="77" y1="91" x2="77" y2="99" stroke="#3a80b0" stroke-width="0.5"/>
+                        <rect id="panel-highlight" x="25" y="91" width="70" height="8" rx="1" fill="rgba(150,200,255,0.15)" opacity="0"/>
                     </g>
                     <!-- (clouds and rain are placed in sky layer above) -->
                     <!-- Info text (bottom left) -->
@@ -134,25 +131,24 @@
                 <!-- Left: Gauges stacked -->
                 <div class="gauges-col">
                     <div class="gauge-row">
-                        <!-- Compass -->
+                        <!-- Half Compass (S/E/W, south-facing) -->
                         <div class="gauge-container">
-                            <svg id="compass-gauge" viewBox="0 0 200 200" class="compass-svg">
-                                <circle cx="100" cy="100" r="95" class="gauge-bg"/>
+                            <svg id="compass-gauge" viewBox="0 0 200 120" class="compass-svg half-compass">
+                                <path d="M 5 10 A 95 95 0 0 1 195 10" class="gauge-bg-arc"/>
                                 <g id="compass-ticks"></g>
-                                <text x="100" y="22" class="cardinal">N</text>
-                                <text x="100" y="188" class="cardinal">S</text>
-                                <text x="12" y="105" class="cardinal">W</text>
-                                <text x="188" y="105" class="cardinal">E</text>
+                                <text x="100" y="118" class="cardinal">S</text>
+                                <text x="12" y="15" class="cardinal">W</text>
+                                <text x="188" y="15" class="cardinal">E</text>
                                 <g id="sun-needle" class="needle sun-needle">
-                                    <line x1="100" y1="100" x2="100" y2="30"/>
-                                    <circle cx="100" cy="30" r="6" class="sun-dot"/>
+                                    <line x1="100" y1="10" x2="100" y2="80"/>
+                                    <circle cx="100" cy="80" r="6" class="sun-dot"/>
                                 </g>
                                 <g id="panel-needle" class="needle panel-needle">
-                                    <line x1="100" y1="100" x2="100" y2="35"/>
-                                    <polygon points="96,40 104,40 100,28"/>
+                                    <line x1="100" y1="10" x2="100" y2="75"/>
+                                    <polygon points="96,70 104,70 100,82"/>
                                 </g>
                                 <g id="compass-limits" class="limit-markers"></g>
-                                <circle cx="100" cy="100" r="4" class="center-dot"/>
+                                <circle cx="100" cy="10" r="4" class="center-dot"/>
                             </svg>
                             <div class="gauge-legend">
                                 <span class="legend-sun">&#9728; <span id="sun-azimuth">--</span>&deg;</span>
@@ -194,10 +190,6 @@
                         <button class="dpad-btn center" id="stop-btn">STOP</button>
                         <button class="dpad-btn right" data-direction="right">&#9654;</button>
                         <button class="dpad-btn down" data-direction="down">&#9660;</button>
-                    </div>
-                    <div class="preset-buttons" style="margin-top:10px">
-                        <button id="home-btn" class="btn btn-preset btn-sm">&#8962; HOME</button>
-                        <button id="stow-btn" class="btn btn-preset btn-sm">&#9660; STOW</button>
                     </div>
                 </div>
             </div>
@@ -256,6 +248,10 @@
                 <span class="chevron">&#9660;</span>
             </div>
             <div class="card-body">
+                <div class="form-row" style="margin-bottom:12px">
+                    <button id="home-btn" class="btn btn-sm btn-ghost">&#8962; HOME</button>
+                    <button id="stow-btn" class="btn btn-sm btn-ghost">&#9660; STOW</button>
+                </div>
                 <div class="form-row">
                     <input type="text" id="raw-hex" placeholder="Hex data (e.g. 01020304)">
                     <button id="send-raw-btn" class="btn btn-sm btn-ghost">Send</button>
@@ -277,6 +273,6 @@
     <span id="limits-since" style="display:none"></span>
     <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=30"></script>
+    <script src="/static/app.js?v=31"></script>
 </body>
 </html>
