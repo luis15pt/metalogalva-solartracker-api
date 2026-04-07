@@ -30,6 +30,7 @@ from .models import (
 from .serial_handler import serial_handler
 from .mqtt_handler import mqtt_handler
 from .protocol import SolarTrackerProtocol, ResponseOffsets
+from .inverter import router as inverter_router
 
 # Configure logging
 logging.basicConfig(
@@ -427,6 +428,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Include routers
+app.include_router(inverter_router)
 
 # Mount static files and templates
 app.mount("/static", StaticFiles(directory="web/static"), name="static")

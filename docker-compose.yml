@@ -14,6 +14,7 @@ services:
       - MQTT_PORT=1883
       - MQTT_TOPIC_PREFIX=solartracker
       - LOG_LEVEL=INFO
+      - SBFSPOT_DB=/data/SBFspot.db
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
     volumes:

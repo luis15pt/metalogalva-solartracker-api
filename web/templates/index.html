@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=40">
+    <link rel="stylesheet" href="/static/style.css?v=41">
 </head>
 <body>
     <div class="container">
@@ -125,6 +125,14 @@
                         <rect id="panel-highlight" x="25" y="91" width="70" height="8" rx="1" fill="rgba(150,200,255,0.15)" opacity="0"/>
                     </g>
                     <!-- (clouds and rain are placed in sky layer above) -->
+                    <!-- SMA Inverter box on ground -->
+                    <g id="scene-inverter">
+                        <rect x="380" y="155" width="30" height="22" rx="2" fill="#2a3a4a" stroke="#3a5a6a" stroke-width="0.8"/>
+                        <text x="395" y="163" fill="#4aff4a" font-size="5" font-family="monospace" text-anchor="middle" id="inv-scene-power">--W</text>
+                        <text x="395" y="171" fill="#88aacc" font-size="4" font-family="monospace" text-anchor="middle">SMA</text>
+                        <!-- LED indicator -->
+                        <circle id="inv-scene-led" cx="404" cy="157" r="1.5" fill="#333"/>
+                    </g>
                     <!-- Info text (bottom left) -->
                     <text id="scene-sunrise" x="10" y="170" fill="rgba(255,255,255,0.4)" font-size="10" font-family="sans-serif"></text>
                     <text id="scene-weather" x="10" y="185" fill="rgba(255,255,255,0.4)" font-size="10" font-family="sans-serif"></text>
@@ -201,6 +209,35 @@
             </div>
         </section>
 
+        <!-- Energy Production -->
+        <section class="card" id="energy-panel">
+            <div class="card-header">
+                <h2>Energy</h2>
+                <span id="inverter-status-badge" class="badge badge-info" style="font-size:0.7rem">--</span>
+            </div>
+            <div class="energy-grid">
+                <div class="energy-item energy-power">
+                    <span class="energy-value" id="inv-power">--</span>
+                    <span class="energy-label">W</span>
+                </div>
+                <div class="energy-item">
+                    <span class="energy-label">Today</span>
+                    <span class="energy-value" id="inv-today">--</span>
+                    <span class="energy-unit">kWh</span>
+                </div>
+                <div class="energy-item">
+                    <span class="energy-label">Total</span>
+                    <span class="energy-value" id="inv-total">--</span>
+                    <span class="energy-unit">MWh</span>
+                </div>
+                <div class="energy-item">
+                    <span class="energy-label">Temp</span>
+                    <span class="energy-value" id="inv-temp">--</span>
+                    <span class="energy-unit">&deg;C</span>
+                </div>
+            </div>
+        </section>
+
         <!-- Alarms -->
         <section class="card collapsible" id="info-panel">
             <div class="card-header clickable" data-toggle="info-panel">
@@ -270,6 +307,6 @@
     <span id="limits-since" style="display:none"></span>
     <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=40"></script>
+    <script src="/static/app.js?v=41"></script>
 </body>
 </html>

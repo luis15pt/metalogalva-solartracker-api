@@ -628,6 +628,51 @@ setInterval(fetchWeather, 15 * 60 * 1000);
 // Actions
 // =============================================================================
 
+// =============================================================================
+// Inverter Data
+// =============================================================================
+
+async function fetchInverterStatus() {
+    try {
+        const data = await apiCall('/inverter/status');
+        const powerEl = document.getElementById('inv-power');
+        const todayEl = document.getElementById('inv-today');
+        const totalEl = document.getElementById('inv-total');
+        const tempEl = document.getElementById('inv-temp');
+        const badgeEl = document.getElementById('inverter-status-badge');
+        const scenePower = document.getElementById('inv-scene-power');
+        const sceneLed = document.getElementById('inv-scene-led');
+
+        if (powerEl) powerEl.textContent = data.current_power || 0;
+        if (todayEl) todayEl.textContent = (data.today_yield / 1000).toFixed(2);
+        if (totalEl) totalEl.textContent = (data.total_yield / 1000000).toFixed(1);
+        if (tempEl) tempEl.textContent = data.temperature !== null ? data.temperature.toFixed(0) : '--';
+        if (badgeEl) {
+            badgeEl.textContent = data.status || '--';
+            badgeEl.style.borderColor = data.status === 'OK' ? 'var(--success)' : 'var(--warning)';
+        }
+
+        // Scene inverter LCD
+        if (scenePower) {
+            const p = data.current_power || 0;
+            scenePower.textContent = p > 1000 ? (p/1000).toFixed(1) + 'kW' : p + 'W';
+        }
+        if (sceneLed) {
+            sceneLed.setAttribute('fill', data.current_power > 0 ? '#4aff4a' : '#666');
+        }
+    } catch (e) {
+        // DB might not be mounted yet
+    }
+}
+
+// Fetch inverter data every 30 seconds
+fetchInverterStatus();
+setInterval(fetchInverterStatus, 30000);
+
+// =============================================================================
+// Actions
+// =============================================================================
+
 async function refreshPorts() {
     const data = await apiCall('/serial/ports');
     el.portSelect.innerHTML = '<option value="">Select port...</option>';

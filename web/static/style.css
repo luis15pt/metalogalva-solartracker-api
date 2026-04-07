@@ -340,6 +340,52 @@ header h1 {
 .compass-svg .panel-needle polygon { fill: var(--accent); }
 .compass-svg .center-dot { fill: var(--text); }
 
+/* Energy Card */
+.energy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 8px;
+    text-align: center;
+}
+
+.energy-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.energy-power {
+    grid-column: 1;
+}
+
+.energy-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.energy-power .energy-value {
+    font-size: 1.8rem;
+    color: var(--success);
+}
+
+.energy-label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.energy-unit {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+}
+
+@media (max-width: 360px) {
+    .energy-grid { grid-template-columns: 1fr 1fr; }
+}
+
 /* Altitude SVG */
 .altitude-svg { width: 100%; max-width: 200px; }
 .altitude-svg .arc-bg { fill: none; stroke: rgba(15,52,96,0.5); stroke-width: 12; stroke-linecap: round; }
