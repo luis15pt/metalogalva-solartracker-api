@@ -305,9 +305,9 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
 
     // Panel tilt — pivot at (100, 118)
     // panelV: 0°=vertical/upright, 90°=flat/horizontal
-    // CCW rotation: right end dips down, left end rises — panel catches sun from the right
+    // CW (positive) rotation: left end dips, right end rises — surface faces right towards sun
     if (panelV !== null) {
-        const tiltAngle = panelV - 90;
+        const tiltAngle = 90 - panelV; // panelV=50 -> +40 CW
         panel.setAttribute('transform', `rotate(${tiltAngle}, 100, 118)`);
     }
 
