@@ -276,9 +276,13 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
     rays.setAttribute('cy', sunY);
     rays.setAttribute('opacity', isDay ? Math.min(0.6, sunAlt / 30) : 0);
 
-    // Stars: visible at night
+    // Stars + moon: visible at night
     if (stars) {
         stars.setAttribute('opacity', sunAlt !== null && sunAlt < -5 ? Math.min(1, (-sunAlt - 5) / 10) : 0);
+    }
+    const moon = document.getElementById('scene-moon');
+    if (moon) {
+        moon.setAttribute('opacity', sunAlt !== null && sunAlt < -3 ? Math.min(0.9, (-sunAlt - 3) / 8) : 0);
     }
 
     // Sky gradient
@@ -486,8 +490,9 @@ function updateUI(status) {
     // Observed Limits
     updateObservedLimits(status.observed_limits);
 
-    // Alarms
-    updateAlarms(status.alarms || []);
+    // Alarms (suppress tilt_limit_flat at night — it's expected when stowed)
+    const isNight = sunAlt !== null && sunAlt < 0;
+    updateAlarms(status.alarms || [], isNight);
     updateAlarmHistory(status.alarm_history || []);
 }
 
@@ -509,15 +514,16 @@ function updateObservedLimits(limits) {
     updateAltitudeLimits(limits.vertical_min ?? null, limits.vertical_max ?? null);
 }
 
-function updateAlarms(alarms) {
-    const hasAlarms = alarms.length > 0;
+function updateAlarms(alarms, isNight) {
+    // At night, suppress tilt_limit_flat (expected when stowed)
+    const filtered = isNight ? alarms.filter(a => a !== 'tilt_limit_flat') : alarms;
+    const hasAlarms = filtered.length > 0;
     el.alarmBanner.style.display = hasAlarms ? '' : 'none';
 
     if (hasAlarms) {
-        // Check if all alarms are informational
-        const allInfo = alarms.every(a => INFO_ALARMS.includes(a));
+        const allInfo = filtered.every(a => INFO_ALARMS.includes(a));
         el.alarmBanner.classList.toggle('info-alarm', allInfo);
-        el.alarmList.innerHTML = alarms.map(a => `<li>${ALARM_NAMES[a] || a}</li>`).join('');
+        el.alarmList.innerHTML = filtered.map(a => `<li>${ALARM_NAMES[a] || a}</li>`).join('');
     }
 }
 
