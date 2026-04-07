@@ -304,11 +304,11 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
     }
 
     // Panel tilt — pivot at (100, 118)
-    // panelV: 0°=vertical/upright, 90°=flat/horizontal
-    // CW (positive) rotation: left end dips, right end rises — surface faces right towards sun
+    // panelV is the tilt angle shown on the altitude gauge (0°=horizon, 90°=zenith)
+    // Scene panel starts horizontal. Rotate by panelV so visual matches gauge.
+    // Positive = CW = right end up, surface faces right towards sun
     if (panelV !== null) {
-        const tiltAngle = 90 - panelV; // panelV=50 -> +40 CW
-        panel.setAttribute('transform', `rotate(${tiltAngle}, 100, 118)`);
+        panel.setAttribute('transform', `rotate(${panelV}, 100, 118)`);
     }
 
     // Panel highlight (reflection when sun is hitting it)
