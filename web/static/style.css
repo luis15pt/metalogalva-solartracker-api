@@ -154,6 +154,42 @@ header h1 {
     border-radius: 8px;
 }
 
+/* Rain animation */
+.raindrop {
+    stroke: rgba(150,180,220,0.6);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+}
+
+.rd1 { animation: rain 0.8s linear infinite; animation-delay: 0s; }
+.rd2 { animation: rain 0.7s linear infinite; animation-delay: 0.1s; }
+.rd3 { animation: rain 0.9s linear infinite; animation-delay: 0.3s; }
+.rd4 { animation: rain 0.75s linear infinite; animation-delay: 0.15s; }
+.rd5 { animation: rain 0.85s linear infinite; animation-delay: 0.4s; }
+.rd6 { animation: rain 0.7s linear infinite; animation-delay: 0.25s; }
+.rd7 { animation: rain 0.8s linear infinite; animation-delay: 0.5s; }
+.rd8 { animation: rain 0.9s linear infinite; animation-delay: 0.35s; }
+.rd9 { animation: rain 0.75s linear infinite; animation-delay: 0.2s; }
+.rd10 { animation: rain 0.8s linear infinite; animation-delay: 0.45s; }
+.rd11 { animation: rain 0.7s linear infinite; animation-delay: 0.1s; }
+.rd12 { animation: rain 0.85s linear infinite; animation-delay: 0.55s; }
+
+@keyframes rain {
+    0% { transform: translateY(0); opacity: 0.7; }
+    80% { opacity: 0.7; }
+    100% { transform: translateY(30px); opacity: 0; }
+}
+
+/* Cloud drift */
+#weather-clouds {
+    animation: cloud-drift 20s ease-in-out infinite alternate;
+}
+
+@keyframes cloud-drift {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(15px); }
+}
+
 /* Cards */
 .card {
     background: var(--bg-card);

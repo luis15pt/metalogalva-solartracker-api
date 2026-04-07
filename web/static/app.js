@@ -574,19 +574,36 @@ function updateWeatherDisplay() {
 
     const sunriseEl = document.getElementById('scene-sunrise');
     const weatherEl = document.getElementById('scene-weather');
+    const cloudsEl = document.getElementById('weather-clouds');
+    const rainEl = document.getElementById('weather-rain');
 
+    // Sunrise/sunset text
     if (sunriseEl && weatherCache.sunrise && weatherCache.sunset) {
         const sr = new Date(weatherCache.sunrise);
         const ss = new Date(weatherCache.sunset);
         const fmt = d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-        sunriseEl.textContent = `\u2600 ${fmt(sr)}  \u263D ${fmt(ss)}`;
+        sunriseEl.textContent = `\u2600\uFE0E ${fmt(sr)}  \u263D\uFE0E ${fmt(ss)}`;
     }
 
+    // Weather text
     if (weatherEl) {
         const desc = WMO_CODES[weatherCache.code] || '';
         const temp = weatherCache.temp !== undefined ? `${Math.round(weatherCache.temp)}\u00B0C` : '';
-        const wind = weatherCache.wind !== undefined ? `${Math.round(weatherCache.wind)} km/h` : '';
-        weatherEl.textContent = `${desc}  ${temp}  \uD83D\uDCA8 ${wind}`;
+        const wind = weatherCache.wind !== undefined ? `Wind ${Math.round(weatherCache.wind)} km/h` : '';
+        weatherEl.textContent = `${desc}  ${temp}  ${wind}`;
+    }
+
+    // Weather effects: clouds + rain based on WMO code
+    const code = weatherCache.code;
+    const hasClouds = code >= 2; // Partly cloudy and above
+    const hasRain = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code === 95;
+    const heavyRain = code === 55 || code === 65 || code === 82;
+
+    if (cloudsEl) {
+        cloudsEl.setAttribute('opacity', hasClouds ? (code >= 3 ? '0.7' : '0.4') : '0');
+    }
+    if (rainEl) {
+        rainEl.setAttribute('opacity', hasRain ? (heavyRain ? '0.9' : '0.6') : '0');
     }
 }
 
