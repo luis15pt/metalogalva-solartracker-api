@@ -357,7 +357,7 @@ Note: The 0x7c (124) byte may indicate expected payload length.
 │ Offset │ Length │ Type        │ Description                    │
 ├────────┼────────┼─────────────┼────────────────────────────────┤
 │ 0-6    │ 7      │ bytes       │ Header: 81 00 01 82 00 7c 50   │
-│ 7      │ 1      │ byte        │ Reserved/Unknown               │
+│ 7      │ 1      │ byte        │ Mode: 0x00=AUTO, 0x01=MANUAL   │
 │ 8      │ 1      │ uint8       │ Day (1-31)                     │
 │ 9      │ 1      │ uint8       │ Month (1-12)                   │
 │ 10     │ 1      │ uint8       │ Year (offset from 2000)        │
@@ -365,15 +365,14 @@ Note: The 0x7c (124) byte may indicate expected payload length.
 │ 12     │ 1      │ uint8       │ Minute (0-59)                  │
 │ 13     │ 1      │ uint8       │ Hour (0-23)                    │
 │ 14-15  │ 2      │ bytes       │ Reserved/Unknown               │
-│ 16-19  │ 4      │ float32 LE  │ Panel Vertical/Tilt (degrees)  │
-│ 20     │ 1      │ uint8       │ Status/Mode flags (see below)  │
+│ 16-19  │ 4      │ float32 LE  │ Panel Vertical/Tilt (degrees from vertical: 90°=flat/stowed, 0°=vertical) │
+│ 20     │ 1      │ uint8       │ Status flags (dynamic, motor/encoder related - see below) │
 │ 21     │ 1      │ uint8       │ Unknown (observed: 0x14)       │
 │ 22-25  │ 4      │ float32 LE  │ Panel Horizontal/Azi (degrees) │
 │ 26-29  │ 4      │ float32 LE  │ Sun Altitude (degrees)         │
 │ 30-33  │ 4      │ float32 LE  │ Sun Azimuth (degrees)          │
-│ 34-35  │ 2      │ bytes       │ Reserved/Padding               │
-│ 36     │ 1      │ uint8       │ Alarm bitmask                  │
-│ 37     │ 1      │ bytes       │ Reserved/Padding               │
+│ 34-36  │ 3      │ bytes       │ Reserved/Padding               │
+│ 37     │ 1      │ uint8       │ Alarm bitmask                  │
 └────────┴────────┴─────────────┴────────────────────────────────┘
 ```
 
@@ -381,20 +380,22 @@ Note: The 0x7c (124) byte may indicate expected payload length.
 
 All float values are IEEE 754 single-precision (32-bit) in **little-endian** byte order.
 
-### Alarm Bitmask (Byte 36)
+### Alarm Bitmask (Byte 37)
 
-| Bit | Mask | Alarm Type | Portuguese | Description |
-|-----|------|------------|------------|-------------|
-| 0 | 0x01 | Vertical limit | fim de curso vertical | Rotation limit reached |
-| 1 | 0x02 | Tilt limit (flat) | fim de curso horizontal | Panel is flat/horizontal (stow position) |
-| 2 | 0x04 | West limit | - | TBD |
-| 3 | 0x08 | Wind speed exceeded | limite de vento excedido | Wind threshold exceeded |
-| 4 | 0x10 | Actuator motor current | - | Tilt motor overcurrent |
-| 5 | 0x20 | Rotation motor current | - | Rotation motor overcurrent |
-| 6 | 0x40 | Unknown | - | TBD |
-| 7 | 0x80 | Encoder error | erro no encoder do motor actuador | Encoder/limit sensor malfunction - BLOCKS ALL MOVEMENT until cleared |
+| Bit | Mask | Alarm Type | Description |
+|-----|------|------------|-------------|
+| 0 | 0x01 | Vertical limit | Vertical limit reached |
+| 1 | 0x02 | Unknown | Previously thought to be tilt limit |
+| 2 | 0x04 | West limit | West rotation limit reached |
+| 3 | 0x08 | Tilt limit flat / panel stowed | CONFIRMED: activates when panel is at 90 degrees vertical (flat/stowed at night), clears at sunrise when tracking begins |
+| 4 | 0x10 | Actuator current | Tilt motor overcurrent |
+| 5 | 0x20 | Rotation current | Rotation motor overcurrent |
+| 6 | 0x40 | Unknown | TBD |
+| 7 | 0x80 | Encoder error | Encoder/limit sensor malfunction - BLOCKS ALL MOVEMENT until cleared |
 
-**Note:** The "tilt limit flat" alarm (bit 1) is **normal when stowed** - it indicates the panel is tilted to its maximum flat position for wind protection. The Portuguese "fim de curso horizontal" refers to the panel surface being horizontal, not the rotation axis.
+**Note:** Alarm bytes with values >= 0xF0 are treated as corrupt/garbage data and should be ignored.
+
+**Note:** The "tilt limit flat" alarm (bit 3, 0x08) is **normal when stowed** - it activates when the panel is at 90 degrees vertical (flat/stowed position at night) and clears automatically at sunrise when tracking begins.
 
 ### Extended Response (134+ bytes)
 
@@ -425,26 +426,28 @@ def parse_response(data: bytes) -> dict:
         "panel_horizontal": struct.unpack('<f', data[22:26])[0],
         "sun_altitude": struct.unpack('<f', data[26:30])[0],
         "sun_azimuth": struct.unpack('<f', data[30:34])[0],
-        "alarm_byte": data[34],
+        "alarm_byte": data[37],
     }
 ```
 
-## Status/Mode Flags (Byte 20)
+## Status Flags Byte (Offset 20)
 
-Byte 20 contains status and mode flags.
+Byte 20 is a dynamic status/flags byte that changes rapidly during panel movement. It is NOT a static mode indicator.
 
 ### Observed Values
 
-| Value | Binary | State |
-|-------|--------|-------|
-| 0xCF | 11001111 | **Error/Alarm state** - Tracker not functioning |
-| 0x0E | 00001110 | **Active tracking** - Auto mode, following sun |
+| Value | Hex | Context |
+|-------|-----|---------|
+| 0x26 | 00100110 | During movement |
+| 0x45 | 01000101 | During movement |
+| 0x8C | 10001100 | During movement |
+| 0xD2 | 11010010 | During movement |
+| 0x17 | 00010111 | During movement |
+| 0x59 | 01011001 | During movement |
+| 0xCF | 11001111 | Error/Alarm state |
+| 0x0E | 00001110 | Active tracking |
 
-### Bit Analysis (tentative)
-
-- Bits 6-7 (0xC0): When set, indicate error state
-- Bits 1-3 (0x0E): Active when tracking normally
-- Bit 0: Unknown
+This byte appears to be motor/encoder related status that changes as the panel moves. Do not use it as a mode indicator.
 
 ### Important Discovery
 
@@ -453,7 +456,7 @@ When the tracker shows status 0xCF:
 - This changes status to 0x0E and enables tracking
 - The tracker then automatically moves to track the sun
 
-**Note:** Previously this byte was incorrectly documented as the alarm bitmask. The actual alarm byte is at offset 34.
+**Note:** The actual alarm byte is at offset 37, not this byte.
 
 ## Known Issues
 
@@ -494,12 +497,12 @@ This clears the error state and enables automatic sun tracking.
 
 ### Rotation Encoder Reading in Auto Mode
 
-**Note:** When in auto tracking mode (byte[7]=0x00), the horizontal position at bytes [20-24] may read as 0.00°. This does NOT necessarily indicate an encoder failure.
+**Note:** When in auto tracking mode (byte[7]=0x00, the default mode), the horizontal position at bytes [20-24] may read as 0.00 degrees. This does NOT necessarily indicate an encoder failure.
 
 In auto mode:
 - The actual panel horizontal position is at bytes [30-34]
-- This value tracks the sun azimuth (within ~0.2°)
-- The tracker is functioning correctly even if [20-24] shows 0.00°
+- This value tracks the sun azimuth (within ~0.2 degrees)
+- The tracker is functioning correctly even if [20-24] shows 0.00 degrees
 
 **True encoder failure symptoms:**
 - Panel physically doesn't rotate when sun moves
@@ -509,7 +512,7 @@ In auto mode:
 
 ### Alarm Query Command (DISCOVERED February 2026)
 
-**IMPORTANT:** The full alarm bitmask is NOT in the standard status response (byte 37). Instead, use the **Type 0x01, Command 0x31** query to get accurate alarm information.
+**IMPORTANT:** The alarm bitmask in the standard status response (byte 37) may only show a subset of alarms. The **Type 0x01, Command 0x31** query can provide more complete alarm information. Note: alarm byte values >= 0xF0 should be treated as corrupt data and ignored.
 
 #### Alarm Query Command (9 bytes)
 
@@ -541,10 +544,10 @@ The response includes a **short packet** containing the alarm bitmask:
 
 | Bit | Mask | Alarm Type | Description |
 |-----|------|------------|-------------|
-| 0 | 0x01 | Vertical limit | Tilt axis vertical limit |
-| 1 | 0x02 | Tilt limit (flat) | Panel at flat/stow position |
-| 2 | 0x04 | East/West limit | Rotation axis limit reached |
-| 3 | 0x08 | Wind speed | Wind threshold exceeded |
+| 0 | 0x01 | Vertical limit | Vertical limit reached |
+| 1 | 0x02 | Unknown | Previously thought to be tilt limit |
+| 2 | 0x04 | West limit | West rotation limit reached |
+| 3 | 0x08 | Tilt limit flat / panel stowed | Activates at 90 degrees vertical (flat/stowed), clears at sunrise |
 | 4 | 0x10 | Actuator current | Tilt motor overcurrent |
 | 5 | 0x20 | Rotation current | Rotation motor overcurrent |
 | 6 | 0x40 | Unknown | TBD |
@@ -557,9 +560,9 @@ Query: `81 FF 00 82 00 01 31 83 B9`
 Response includes: `81 00 01 82 00 01 86 83 0E`
 
 Alarm byte: **0x86** = 10000110
-- Bit 7 (0x80): Encoder error ✓
-- Bit 2 (0x04): East/West limit ✓
-- Bit 1 (0x02): Tilt limit flat ✓
+- Bit 7 (0x80): Encoder error
+- Bit 2 (0x04): West limit
+- Bit 1 (0x02): Unknown
 
 #### Why Byte [37] in Status Response Differs
 
@@ -582,7 +585,9 @@ If the short packet is not present, fall back to reading byte [37] from the stan
 
 ### Packet Mode Byte [7] - Two Response Formats
 
-The response packet has two different structures depending on byte [7]:
+The response packet has two different structures depending on byte [7].
+
+**Mode detection is inverted from what you might expect:** 0x00 = AUTO (default tracking mode), 0x01 = MANUAL. The tracker returns 0x00 when actively auto-tracking the sun.
 
 #### Mode 0x01 (Manual Mode / Detailed Status)
 ```
@@ -597,25 +602,26 @@ Bytes [16-19] = Panel Vertical/Tilt (float, degrees)
 Bytes [22-25] = Panel Horizontal (float, degrees)
 Bytes [26-29] = Sun Altitude (float, degrees)
 Bytes [30-33] = Sun Azimuth (float, degrees)
-Byte [37] = Alarm/status flags
+Byte [37] = Alarm bitmask
 ```
 
 #### Mode 0x00 (Auto Tracking Mode)
 ```
 Byte [7]  = 0x00
 Bytes [8-15] = Date/time (different format)
-Bytes [16-19] = Panel Tilt (float, degrees from vertical)
+Bytes [16-19] = Panel Tilt (float, angle from vertical: 90°=flat/stowed, 0°=vertical)
 Bytes [22-25] = Sun Azimuth (float, degrees)
 Bytes [26-29] = Sun Altitude (float, degrees)
 Bytes [30-33] = Panel Horizontal / Target (float, degrees - tracks sun azimuth)
-Byte [37] = 0x00
+Byte [37] = Alarm bitmask
 ```
 
 **Key Discovery (February 2026):**
-- **Mode 0x00 = AUTO TRACKING MODE** (not an error state!)
+- **Mode 0x00 = AUTO TRACKING MODE** (the default mode, not an error state)
+- **Mode 0x01 = MANUAL MODE** (mode detection is inverted from intuitive expectation)
 - When byte[7]=0x00, the tracker is actively following the sun
-- [30:34] closely matches sun azimuth (within 0.2°) and changes as sun moves
-- Panel tilt [16:20] shows current tilt angle from vertical
+- [30:34] closely matches sun azimuth (within 0.2 degrees) and changes as sun moves
+- Panel tilt [16:20] shows current angle from vertical (90 degrees = flat/stowed, 0 degrees = vertical/pointing up)
 - Verified by physical observation: panel orientation matches reported values
 
 **Observations:**
@@ -631,12 +637,12 @@ During testing, these bytes were found to contain dynamic data:
 |------|-----------------|----------------|
 | [14] | 0x0A-0xE4 (varies rapidly) | Movement counter, encoder position, or ADC value |
 | [15] | 0x01-0x08 (increments) | Movement duration counter - increments during active movement |
-| [37] | 0x02 (constant) | Tilt position indicator (not clearable alarm) |
+| [37] | Alarm bitmask | Alarm byte (see Alarm Bitmask section) |
 
 **Key observations:**
-- Byte [37] = 0x02 (tilt_limit_flat) remains set even when panel is at 62° (not flat), suggesting it's a latched status or has different meaning
+- Byte [37] is the alarm bitmask (confirmed to match ALARM_BYTE = 37 in protocol.py)
+- Alarm byte values >= 0xF0 are corrupt/garbage data and should be ignored
 - Bytes [14-15] appear to be movement/encoder related counters, not alarm flags
-- The encoder error (0x80) and horizontal/rotation limit alarms shown in STcontrol are NOT visible in bytes [36-37]
 - Rotation movement commands are blocked while tilt commands work - suggesting separate alarm handling per axis
 
 ### Manual Movement Commands Not Working in Auto Mode
