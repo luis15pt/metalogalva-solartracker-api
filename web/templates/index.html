@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=41">
+    <link rel="stylesheet" href="/static/style.css?v=42">
 </head>
 <body>
     <div class="container">
@@ -127,11 +127,11 @@
                     <!-- (clouds and rain are placed in sky layer above) -->
                     <!-- SMA Inverter box on ground -->
                     <g id="scene-inverter">
-                        <rect x="380" y="155" width="30" height="22" rx="2" fill="#2a3a4a" stroke="#3a5a6a" stroke-width="0.8"/>
-                        <text x="395" y="163" fill="#4aff4a" font-size="5" font-family="monospace" text-anchor="middle" id="inv-scene-power">--W</text>
-                        <text x="395" y="171" fill="#88aacc" font-size="4" font-family="monospace" text-anchor="middle">SMA</text>
+                        <rect x="365" y="152" width="50" height="32" rx="3" fill="#8b1a1a" stroke="#cc3333" stroke-width="1"/>
+                        <text x="390" y="166" fill="#4aff4a" font-size="9" font-family="monospace" text-anchor="middle" font-weight="bold" id="inv-scene-power">--W</text>
+                        <text x="390" y="178" fill="#ffcccc" font-size="7" font-family="sans-serif" text-anchor="middle" font-weight="bold">SMA</text>
                         <!-- LED indicator -->
-                        <circle id="inv-scene-led" cx="404" cy="157" r="1.5" fill="#333"/>
+                        <circle id="inv-scene-led" cx="408" cy="155" r="2" fill="#333"/>
                     </g>
                     <!-- Info text (bottom left) -->
                     <text id="scene-sunrise" x="10" y="170" fill="rgba(255,255,255,0.4)" font-size="10" font-family="sans-serif"></text>
@@ -307,6 +307,6 @@
     <span id="limits-since" style="display:none"></span>
     <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=41"></script>
+    <script src="/static/app.js?v=42"></script>
 </body>
 </html>
