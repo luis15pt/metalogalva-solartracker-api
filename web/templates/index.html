@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=20">
+    <link rel="stylesheet" href="/static/style.css?v=21">
 </head>
 <body>
     <div class="container">
@@ -91,16 +91,14 @@
                     <line id="scene-post" x1="100" y1="150" x2="100" y2="120" stroke="#445566" stroke-width="3" stroke-linecap="round"/>
                     <!-- Panel (rotates around mount point) -->
                     <g id="scene-panel" transform="rotate(0, 100, 118)">
-                        <!-- Panel back (dark, top side when tilted towards sun) -->
-                        <rect x="60" y="114" width="80" height="4" rx="1" fill="#1a2a3a"/>
-                        <!-- Panel face (blue, bottom side — faces right towards sun when tilted CW) -->
-                        <rect x="60" y="118" width="80" height="4" rx="1" fill="#2a6090" stroke="#3a80b0" stroke-width="0.6"/>
-                        <!-- Cell lines on face -->
-                        <line x1="80" y1="118" x2="80" y2="122" stroke="#3a80b0" stroke-width="0.4"/>
-                        <line x1="100" y1="118" x2="100" y2="122" stroke="#3a80b0" stroke-width="0.4"/>
-                        <line x1="120" y1="118" x2="120" y2="122" stroke="#3a80b0" stroke-width="0.4"/>
-                        <!-- Panel highlight (sun reflection) -->
-                        <rect id="panel-highlight" x="60" y="118" width="80" height="4" rx="1" fill="rgba(150,200,255,0.15)" opacity="0"/>
+                        <!-- Panel as a thick line -->
+                        <line x1="60" y1="118" x2="140" y2="118" stroke="#2a6090" stroke-width="6" stroke-linecap="round"/>
+                        <!-- Cell grid lines -->
+                        <line x1="80" y1="115" x2="80" y2="121" stroke="#3a80b0" stroke-width="0.5"/>
+                        <line x1="100" y1="115" x2="100" y2="121" stroke="#3a80b0" stroke-width="0.5"/>
+                        <line x1="120" y1="115" x2="120" y2="121" stroke="#3a80b0" stroke-width="0.5"/>
+                        <!-- Panel highlight -->
+                        <rect id="panel-highlight" x="60" y="115" width="80" height="6" rx="1" fill="rgba(150,200,255,0.15)" opacity="0"/>
                     </g>
                 </svg>
             </div>
@@ -270,6 +268,6 @@
     <input type="hidden" id="max-wind-input" value="0">
     <button id="set-wind-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=20"></script>
+    <script src="/static/app.js?v=21"></script>
 </body>
 </html>

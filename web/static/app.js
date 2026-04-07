@@ -305,9 +305,9 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
 
     // Panel tilt — pivot at (100, 118)
     // panelV: 0°=vertical/upright, 90°=flat/horizontal
-    // Clockwise rotation lifts left side, tilting blue face (top) towards sun on right
+    // CCW rotation: right end dips down, left end rises — panel catches sun from the right
     if (panelV !== null) {
-        const tiltAngle = 90 - panelV;
+        const tiltAngle = panelV - 90;
         panel.setAttribute('transform', `rotate(${tiltAngle}, 100, 118)`);
     }
 
