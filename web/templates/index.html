@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=42">
+    <link rel="stylesheet" href="/static/style.css?v=43">
 </head>
 <body>
     <div class="container">
@@ -125,17 +125,16 @@
                         <rect id="panel-highlight" x="25" y="91" width="70" height="8" rx="1" fill="rgba(150,200,255,0.15)" opacity="0"/>
                     </g>
                     <!-- (clouds and rain are placed in sky layer above) -->
-                    <!-- SMA Inverter box on ground -->
+                    <!-- SMA Inverter box on ground (left, near tracker) -->
                     <g id="scene-inverter">
-                        <rect x="365" y="152" width="50" height="32" rx="3" fill="#8b1a1a" stroke="#cc3333" stroke-width="1"/>
-                        <text x="390" y="166" fill="#4aff4a" font-size="9" font-family="monospace" text-anchor="middle" font-weight="bold" id="inv-scene-power">--W</text>
-                        <text x="390" y="178" fill="#ffcccc" font-size="7" font-family="sans-serif" text-anchor="middle" font-weight="bold">SMA</text>
-                        <!-- LED indicator -->
-                        <circle id="inv-scene-led" cx="408" cy="155" r="2" fill="#333"/>
+                        <rect x="135" y="152" width="50" height="32" rx="3" fill="#8b1a1a" stroke="#cc3333" stroke-width="1"/>
+                        <text x="160" y="166" fill="#4aff4a" font-size="9" font-family="monospace" text-anchor="middle" font-weight="bold" id="inv-scene-power">--W</text>
+                        <text x="160" y="178" fill="#ffcccc" font-size="7" font-family="sans-serif" text-anchor="middle" font-weight="bold">SMA</text>
+                        <circle id="inv-scene-led" cx="178" cy="155" r="2" fill="#333"/>
                     </g>
-                    <!-- Info text (bottom left) -->
-                    <text id="scene-sunrise" x="10" y="170" fill="rgba(255,255,255,0.4)" font-size="10" font-family="sans-serif"></text>
-                    <text id="scene-weather" x="10" y="185" fill="rgba(255,255,255,0.4)" font-size="10" font-family="sans-serif"></text>
+                    <!-- Info text (right side) -->
+                    <text id="scene-sunrise" x="470" y="170" fill="rgba(255,255,255,0.4)" font-size="10" font-family="sans-serif" text-anchor="end"></text>
+                    <text id="scene-weather" x="470" y="185" fill="rgba(255,255,255,0.4)" font-size="10" font-family="sans-serif" text-anchor="end"></text>
                 </svg>
             </div>
 
@@ -307,6 +306,6 @@
     <span id="limits-since" style="display:none"></span>
     <button id="reset-limits-btn" style="display:none"></button>
 
-    <script src="/static/app.js?v=42"></script>
+    <script src="/static/app.js?v=43"></script>
 </body>
 </html>
