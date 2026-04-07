@@ -620,6 +620,13 @@ async def clear_alarms():
     )
 
 
+@app.post("/tracker/alarms/clear-history", response_model=CommandResponse)
+async def clear_alarm_history():
+    """Clear alarm history."""
+    current_status.alarm_history = []
+    return CommandResponse(success=True, message="Alarm history cleared")
+
+
 @app.post("/tracker/wind", response_model=CommandResponse)
 async def set_wind_threshold(command: SetWindThresholdCommand):
     """Set maximum wind threshold."""

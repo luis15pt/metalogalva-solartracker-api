@@ -35,6 +35,7 @@ const el = {
     alarmList: document.getElementById('alarm-list'),
     alarmHistory: document.getElementById('alarm-history'),
     clearAlarmsBtn: document.getElementById('clear-alarms-btn'),
+    clearHistoryBtn: document.getElementById('clear-history-btn'),
     limitHMin: document.getElementById('limit-h-min'),
     limitHMax: document.getElementById('limit-h-max'),
     limitVMin: document.getElementById('limit-v-min'),
@@ -706,6 +707,7 @@ function setup() {
 
     // Alarms
     el.clearAlarmsBtn.addEventListener('click', () => withLoading(el.clearAlarmsBtn, () => apiCall('/tracker/alarms/clear', 'POST')));
+    el.clearHistoryBtn.addEventListener('click', () => withLoading(el.clearHistoryBtn, () => apiCall('/tracker/alarms/clear-history', 'POST')));
 
     // Limits
     el.resetLimitsBtn.addEventListener('click', () => withLoading(el.resetLimitsBtn, () => apiCall('/tracker/limits/reset', 'POST')));

@@ -833,6 +833,10 @@ class SolarTrackerProtocol:
                     alarm_byte = data[OFF.ALARM_BYTE]
                     alarm_list = []
 
+                    # Ignore corrupt packets (all bits set = garbage data)
+                    if alarm_byte >= 0xF0:
+                        alarm_byte = 0
+
                     # Decode alarm bits
                     # Mappings based on STcontrol V4.0.4.0 alarm messages
                     # "fim de curso" = end of travel / limit switch
