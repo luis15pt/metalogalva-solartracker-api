@@ -307,7 +307,7 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
     // panelV: 0°=vertical/upright, 90°=flat/horizontal
     // Positive rotation (clockwise) tilts left side up to face the sun
     if (panelV !== null) {
-        const tiltAngle = 90 - panelV;
+        const tiltAngle = panelV - 90;
         panel.setAttribute('transform', `rotate(${tiltAngle}, 380, 118)`);
     }
 
