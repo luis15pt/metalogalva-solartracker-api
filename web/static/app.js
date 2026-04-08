@@ -315,10 +315,11 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
     // panelV is the tilt angle shown on the altitude gauge (0°=horizon, 90°=zenith)
     // Scene panel starts horizontal. Rotate by panelV so visual matches gauge.
     // Positive = CW = right end up, surface faces right towards sun
-    // panelV is now converted: 0=flat, 90=vertical (tilt from horizontal)
-    // Scene rotation: 0=flat, 90=vertical — use directly
+    // panelV = panel normal angle (raw from tracker). Scene needs surface angle.
+    // Surface angle from horizontal = 90 - normal angle
+    // raw 90 (flat/stowed) → scene 0° (flat). raw 35 (tracking) → scene 55° (tilted)
     if (panelV !== null) {
-        panel.setAttribute('transform', `rotate(${panelV}, 60, 95)`);
+        panel.setAttribute('transform', `rotate(${90 - panelV}, 60, 95)`);
     }
 
     // Panel highlight (reflection when sun is hitting it)
@@ -473,9 +474,9 @@ function updateUI(status) {
     const sunAzi = status.sun_position?.azimuth ?? null;
     const sunAlt = status.sun_position?.altitude ?? null;
     const panelH = status.position?.horizontal ?? null;
-    const panelVraw = status.position?.vertical ?? null;
-    // Tracker reports: 90=flat(stowed), 0=vertical. Convert to tilt from horizontal.
-    const panelV = panelVraw !== null ? 90 - panelVraw : null;
+    const panelV = status.position?.vertical ?? null;
+    // Raw value = panel normal angle from horizontal (matches sun altitude when tracking)
+    // 90° = panel faces zenith (flat/stowed), ~35° = panel faces sun at 35°
 
     el.sunAzimuth.textContent = sunAzi !== null ? sunAzi.toFixed(1) : '--';
     el.sunAltitude.textContent = sunAlt !== null ? sunAlt.toFixed(1) : '--';
