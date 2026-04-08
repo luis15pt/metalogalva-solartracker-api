@@ -13,12 +13,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/inverter", tags=["inverter"])
 
-SBFSPOT_DB = os.environ.get("SBFSPOT_DB", "/data/SBFspot.db")
+SBFSPOT_DB = os.environ.get("SBFSPOT_DB", "/data/smadata/SBFspot.db")
 
 
 def _get_db() -> sqlite3.Connection:
     """Open a read-only connection to the SBFspot database."""
-    db_uri = f"file:{SBFSPOT_DB}?mode=ro&immutable=1"
+    db_uri = f"file:{SBFSPOT_DB}?mode=ro"
     try:
         conn = sqlite3.connect(db_uri, uri=True)
         conn.row_factory = sqlite3.Row
