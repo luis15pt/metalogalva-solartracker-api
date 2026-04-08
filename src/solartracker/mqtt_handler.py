@@ -173,46 +173,69 @@ class MQTTHandler:
                 start = data.get("start", True)
                 if self._on_move_command:
                     await self._on_move_command(direction, start)
+        except Exception as e:
+            logger.error(f"Error handling MQTT command on {topic}: {e}")
 
-            elif topic == self._topic("command/mode"):
+        try:
+            if topic == self._topic("command/mode"):
                 automatic = payload.lower() in ("auto", "automatic", "true", "1")
                 if self._on_mode_command:
                     await self._on_mode_command(automatic)
+        except Exception as e:
+            logger.error(f"Error handling MQTT command on {topic}: {e}")
 
-            elif topic == self._topic("command/clear_alarms"):
+        try:
+            if topic == self._topic("command/clear_alarms"):
                 if self._on_clear_alarms:
                     await self._on_clear_alarms()
+        except Exception as e:
+            logger.error(f"Error handling MQTT command on {topic}: {e}")
 
-            elif topic == self._topic("command/set_wind"):
+        try:
+            if topic == self._topic("command/set_wind"):
                 value = int(payload)
                 if self._on_set_wind:
                     await self._on_set_wind(value)
+        except Exception as e:
+            logger.error(f"Error handling MQTT command on {topic}: {e}")
 
-            elif topic == self._topic("command/go_home"):
+        try:
+            if topic == self._topic("command/go_home"):
                 if self._on_go_home:
                     await self._on_go_home()
+        except Exception as e:
+            logger.error(f"Error handling MQTT command on {topic}: {e}")
 
-            elif topic == self._topic("command/go_stow"):
+        try:
+            if topic == self._topic("command/go_stow"):
                 if self._on_go_stow:
                     await self._on_go_stow()
+        except Exception as e:
+            logger.error(f"Error handling MQTT command on {topic}: {e}")
 
-            elif topic == self._topic("command/set_gps"):
+        try:
+            if topic == self._topic("command/set_gps"):
                 data = json.loads(payload)
                 lat = float(data.get("latitude"))
                 lon = float(data.get("longitude"))
                 if self._on_set_gps:
                     await self._on_set_gps(lat, lon)
+        except Exception as e:
+            logger.error(f"Error handling MQTT command on {topic}: {e}")
 
-            elif topic == self._topic("command/sync_datetime"):
+        try:
+            if topic == self._topic("command/sync_datetime"):
                 if self._on_sync_datetime:
                     await self._on_sync_datetime()
+        except Exception as e:
+            logger.error(f"Error handling MQTT command on {topic}: {e}")
 
-            elif topic == self._topic("command/zero_panel"):
+        try:
+            if topic == self._topic("command/zero_panel"):
                 if self._on_zero_panel:
                     await self._on_zero_panel()
-
         except Exception as e:
-            logger.error(f"Error handling MQTT command: {e}")
+            logger.error(f"Error handling MQTT command on {topic}: {e}")
 
     def set_callbacks(
         self,

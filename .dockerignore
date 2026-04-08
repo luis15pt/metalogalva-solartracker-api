@@ -1,0 +1,14 @@
+.git
+.github
+.env
+.env.*
+*.md
+docs/
+mosquitto/
+data/
+*.pyc
+__pycache__
+.pytest_cache
+*.db
+*.sqlite
+.playwright-mcp/

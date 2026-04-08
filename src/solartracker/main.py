@@ -72,6 +72,9 @@ _last_logged_state = {
     "raw_bytes_34_37": None,
 }
 
+# Previous alarm list for detecting alarm transitions
+_previous_alarms: set = set()
+
 # Observed limits persistence
 LIMITS_FILE = "/app/data/observed_limits.json"
 
@@ -105,7 +108,7 @@ def save_observed_limits(limits: ObservedLimits):
 
 def update_observed_limits(horizontal: float | None, vertical: float | None):
     """Update observed min/max limits from a new position reading."""
-    from datetime import datetime
+    from datetime import datetime, timezone
     limits = current_status.observed_limits
     changed = False
 
@@ -126,7 +129,7 @@ def update_observed_limits(horizontal: float | None, vertical: float | None):
             changed = True
 
     if changed:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if limits.first_seen is None:
             limits.first_seen = now
         limits.last_updated = now
@@ -203,7 +206,7 @@ def _log_state_changes(parsed: dict, packet: bytes):
 
 async def on_serial_data(data: bytes):
     """Handle data received from serial port."""
-    global current_status, receive_buffer
+    global current_status, receive_buffer, _previous_alarms
     logger.debug(f"Received serial data: {data.hex()}")
 
     # Accumulate data in buffer
@@ -303,10 +306,10 @@ async def on_serial_data(data: bytes):
             if "alarms" in parsed and "list" in parsed["alarms"]:
                 new_alarms = parsed["alarms"]["list"]
                 # Detect new alarms and add to history
-                from datetime import datetime
+                from datetime import datetime, timezone
                 for alarm in new_alarms:
-                    if alarm not in current_status.alarms:
-                        # New alarm detected - add to history
+                    if alarm not in _previous_alarms:
+                        # Alarm transitioned from absent to present
                         alarm_names = {
                             'vertical_limit': 'Vertical Limit',
                             'unknown_alarm_1': 'Unknown Alarm (bit 1)',
@@ -319,13 +322,14 @@ async def on_serial_data(data: bytes):
                         }
                         entry = AlarmEntry(
                             alarm_type=alarm,
-                            timestamp=current_status.utc_time or datetime.utcnow(),
+                            timestamp=current_status.utc_time or datetime.now(timezone.utc),
                             message=alarm_names.get(alarm, alarm)
                         )
                         current_status.alarm_history.insert(0, entry)  # Newest first
                         # Keep only last 20 alarms in history
                         current_status.alarm_history = current_status.alarm_history[:20]
                         logger.warning(f"Alarm triggered: {alarm}")
+                _previous_alarms = set(new_alarms)
                 current_status.alarms = new_alarms
 
     # Broadcast to WebSocket clients
@@ -337,6 +341,7 @@ async def on_serial_data(data: bytes):
 
 async def status_poll_loop():
     """Periodically poll status from tracker."""
+    failure_count = 0
     while True:
         try:
             if serial_handler.is_connected:
@@ -349,10 +354,18 @@ async def status_poll_loop():
             await broadcast_status()
             await mqtt_handler.publish_status(current_status)
 
-        except Exception as e:
-            logger.error(f"Status poll error: {e}")
+            # Reset failure counter on success
+            failure_count = 0
 
-        await asyncio.sleep(settings.status_poll_interval)
+        except Exception as e:
+            failure_count += 1
+            logger.error(f"Status poll error (failure {failure_count}): {e}")
+
+        # Back off to 30s after 3 consecutive failures
+        if failure_count >= 3:
+            await asyncio.sleep(30)
+        else:
+            await asyncio.sleep(settings.status_poll_interval)
 
 
 @asynccontextmanager

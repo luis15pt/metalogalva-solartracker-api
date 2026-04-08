@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     serial_timeout: float = Field(default=1.0, description="Read timeout in seconds")
 
     # MQTT configuration
-    mqtt_broker: str = Field(default="localhost", description="MQTT broker host")
+    mqtt_broker: str = Field(default="mosquitto", description="MQTT broker host")
     mqtt_port: int = Field(default=1883, description="MQTT broker port")
     mqtt_username: Optional[str] = Field(default=None, description="MQTT username")
     mqtt_password: Optional[str] = Field(default=None, description="MQTT password")

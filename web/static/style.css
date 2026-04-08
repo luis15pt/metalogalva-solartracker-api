@@ -171,11 +171,12 @@ header h1 {
 .rd8 { animation: rain 0.9s linear infinite; animation-delay: 0.35s; }
 .rd9 { animation: rain 0.75s linear infinite; animation-delay: 0.2s; }
 .rd10 { animation: rain 0.8s linear infinite; animation-delay: 0.45s; }
-.rd11 { animation: rain 0.7s linear infinite; animation-delay: 0.1s; }
+.rd11 { animation: rain 0.7s linear infinite; animation-delay: 0.35s; }
 .rd12 { animation: rain 0.85s linear infinite; animation-delay: 0.55s; }
 
 @keyframes rain {
-    0% { transform: translateY(0); opacity: 0.7; }
+    0% { transform: translateY(0); opacity: 0; }
+    10% { opacity: 0.7; }
     80% { opacity: 0.7; }
     100% { transform: translateY(30px); opacity: 0; }
 }
@@ -438,14 +439,6 @@ header h1 {
     }
 }
 
-/* Controls Row */
-.controls-row {
-    display: flex;
-    gap: 16px;
-    align-items: center;
-    justify-content: center;
-}
-
 /* D-Pad */
 .dpad {
     display: grid;
@@ -482,55 +475,6 @@ header h1 {
 .dpad-btn.center.home { background: var(--success); border-color: var(--success); font-size: 1.4rem; }
 .dpad-btn.right { grid-column: 3; grid-row: 2; }
 .dpad-btn.down { grid-column: 2; grid-row: 3; }
-
-/* Preset Buttons */
-.preset-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.btn-preset {
-    padding: 14px 20px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 0.85rem;
-    font-weight: 600;
-    background: var(--bg-input);
-    color: var(--text);
-    transition: all 0.15s;
-    touch-action: manipulation;
-    min-width: 100px;
-}
-
-.btn-preset:active { transform: scale(0.96); background: rgba(255,255,255,0.1); }
-
-/* Info Grid */
-.info-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 12px;
-}
-
-.info-item label {
-    display: block;
-    font-size: 0.7rem;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 2px;
-}
-
-.info-item span {
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-.info-actions {
-    margin-bottom: 16px;
-}
 
 .card-body h3 {
     font-size: 0.85rem;

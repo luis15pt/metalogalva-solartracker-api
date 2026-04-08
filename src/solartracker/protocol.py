@@ -446,6 +446,10 @@ class SolarTrackerProtocol:
     @classmethod
     def set_gps_location(cls, latitude: float, longitude: float) -> bytes:
         """Set tracker GPS location for sun position calculations."""
+        if not (-90 <= latitude <= 90):
+            raise ValueError(f"Latitude must be between -90 and 90, got {latitude}")
+        if not (-180 <= longitude <= 180):
+            raise ValueError(f"Longitude must be between -180 and 180, got {longitude}")
         return cls.build_gps_location(latitude, longitude)
 
     @classmethod
@@ -863,7 +867,7 @@ class SolarTrackerProtocol:
                         "list": alarm_list,
                     }
 
-            except Exception as e:
+            except (struct.error, IndexError, ValueError, KeyError) as e:
                 result["parse_error"] = str(e)
 
         return result

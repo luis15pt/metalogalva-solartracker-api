@@ -21,6 +21,10 @@ services:
       - ./data:/app/data
     group_add:
       - "20"  # dialout group GID for serial port access (check with: stat -c '%g' /dev/ttyUSB0)
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     depends_on:
       - mosquitto
     networks:
@@ -37,6 +41,10 @@ services:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
+    deploy:
+      resources:
+        limits:
+          memory: 64M
     networks:
       - solartracker-net
 

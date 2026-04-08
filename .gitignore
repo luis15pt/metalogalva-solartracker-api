@@ -68,3 +68,18 @@ mosquitto/log/
 
 # Build artifacts
 radare2-*/
+
+# Databases
+*.db
+*.sqlite
+
+# macOS
+.DS_Store
+
+# Certificates
+*.pem
+*.key
+*.crt
+
+# Python version
+.python-version

@@ -42,9 +42,6 @@ const el = {
     limitVMax: document.getElementById('limit-v-max'),
     limitsSince: document.getElementById('limits-since'),
     resetLimitsBtn: document.getElementById('reset-limits-btn'),
-    maxWindInput: document.getElementById('max-wind-input'),
-    setWindBtn: document.getElementById('set-wind-btn'),
-    debugPanel: document.getElementById('debug-panel'),
     rawHex: document.getElementById('raw-hex'),
     sendRawBtn: document.getElementById('send-raw-btn'),
     debugLog: document.getElementById('debug-log'),
@@ -269,12 +266,16 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
     sun.setAttribute('cx', sunX);
     sun.setAttribute('cy', sunY);
     sun.setAttribute('opacity', sunOpacity);
-    glow.setAttribute('cx', sunX);
-    glow.setAttribute('cy', sunY);
-    glow.setAttribute('opacity', sunVisible ? sunOpacity * 0.7 : 0);
-    rays.setAttribute('cx', sunX);
-    rays.setAttribute('cy', sunY);
-    rays.setAttribute('opacity', isDay ? Math.min(0.6, sunAlt / 30) : 0);
+    if (glow) {
+        glow.setAttribute('cx', sunX);
+        glow.setAttribute('cy', sunY);
+        glow.setAttribute('opacity', sunVisible ? sunOpacity * 0.7 : 0);
+    }
+    if (rays) {
+        rays.setAttribute('cx', sunX);
+        rays.setAttribute('cy', sunY);
+        rays.setAttribute('opacity', isDay ? Math.min(0.6, sunAlt / 30) : 0);
+    }
 
     // Stars + moon: visible at night
     if (stars) {
@@ -286,7 +287,7 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
     }
 
     // Sky gradient
-    if (sunAlt !== null) {
+    if (sunAlt !== null && skyTop && skyMid && skyBottom) {
         if (sunAlt > 15) {
             skyTop.setAttribute('stop-color', '#0e2a4a');
             skyMid.setAttribute('stop-color', '#1e5a8c');
@@ -328,22 +329,24 @@ function updateScene(sunAzi, sunAlt, panelH, panelV) {
     }
 
     // Shadow on ground — cast from sun direction
-    if (isDay && panelV !== null && sunAlt > 2) {
-        // Shadow stretches away from the sun
-        const shadowLen = Math.max(8, (70 - sunAlt) * 0.6);
-        // Sun to the left of panel = shadow goes right, and vice versa
-        const panelCX = 60;
-        const shadowDir = sunX > panelCX ? 1 : -1;
-        const shadowSpread = shadowDir * shadowLen;
-        const gY = 160;
-        const sY = gY + Math.max(4, 20 - sunAlt * 0.2);
-        shadow.setAttribute('points',
-            `${25},${gY} ${95},${gY} ` +
-            `${95 + shadowSpread},${sY} ${25 + shadowSpread},${sY}`
-        );
-        shadow.setAttribute('opacity', Math.min(0.35, sunAlt / 25));
-    } else {
-        shadow.setAttribute('opacity', '0');
+    if (shadow) {
+        if (isDay && panelV !== null && sunAlt > 2) {
+            // Shadow stretches away from the sun
+            const shadowLen = Math.max(8, (70 - sunAlt) * 0.6);
+            // Sun to the left of panel = shadow goes right, and vice versa
+            const panelCX = 60;
+            const shadowDir = sunX > panelCX ? 1 : -1;
+            const shadowSpread = shadowDir * shadowLen;
+            const gY = 160;
+            const sY = gY + Math.max(4, 20 - sunAlt * 0.2);
+            shadow.setAttribute('points',
+                `${25},${gY} ${95},${gY} ` +
+                `${95 + shadowSpread},${sY} ${25 + shadowSpread},${sY}`
+            );
+            shadow.setAttribute('opacity', Math.min(0.35, sunAlt / 25));
+        } else {
+            shadow.setAttribute('opacity', '0');
+        }
     }
 }
 
@@ -483,10 +486,6 @@ function updateUI(status) {
     updateAltitudeGauge(sunAlt, panelV);
     updateScene(sunAzi, sunAlt, panelH, panelV);
 
-    // Wind (hidden but keep for API compat)
-    const windThresh = status.max_wind_threshold ?? null;
-    if (windThresh !== null) el.maxWindInput.value = windThresh;
-
     // Observed Limits
     updateObservedLimits(status.observed_limits);
 
@@ -523,22 +522,37 @@ function updateAlarms(alarms, isNight) {
     if (hasAlarms) {
         const allInfo = filtered.every(a => INFO_ALARMS.includes(a));
         el.alarmBanner.classList.toggle('info-alarm', allInfo);
-        el.alarmList.innerHTML = filtered.map(a => `<li>${ALARM_NAMES[a] || a}</li>`).join('');
+        el.alarmList.innerHTML = '';
+        filtered.forEach(a => {
+            const li = document.createElement('li');
+            li.textContent = ALARM_NAMES[a] || a;
+            el.alarmList.appendChild(li);
+        });
     }
 }
 
 function updateAlarmHistory(history) {
     if (!el.alarmHistory) return;
+    el.alarmHistory.innerHTML = '';
     if (history.length === 0) {
-        el.alarmHistory.innerHTML = '<li class="no-history">No alarm history</li>';
+        const li = document.createElement('li');
+        li.className = 'no-history';
+        li.textContent = 'No alarm history';
+        el.alarmHistory.appendChild(li);
         return;
     }
-    el.alarmHistory.innerHTML = history.map(entry => {
+    history.forEach(entry => {
         const ts = new Date(entry.timestamp);
         const d = ts.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
         const t = ts.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-        return `<li><span class="history-time">${d} ${t}</span> ${entry.message}</li>`;
-    }).join('');
+        const li = document.createElement('li');
+        const span = document.createElement('span');
+        span.className = 'history-time';
+        span.textContent = d + ' ' + t;
+        li.appendChild(span);
+        li.appendChild(document.createTextNode(' ' + entry.message));
+        el.alarmHistory.appendChild(li);
+    });
 }
 
 // Last update timer
