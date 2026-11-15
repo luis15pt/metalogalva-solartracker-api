@@ -18,6 +18,7 @@ The system communicates with the tracker via RS-485 serial (FTDI USB adapter) an
 - `src/solartracker/main.py` — FastAPI app, WebSocket, state change logging, link watchdog
 - `src/solartracker/protocol.py` — Serial protocol: frame builder, validating decoder, status and alarm decoding
 - `src/solartracker/serial_handler.py` — RS-485 serial communication with RTS toggling
+- `src/solartracker/goto.py` — Go-to-angle controller: jogs the motors and stops on the status feedback
 - `src/solartracker/mqtt_handler.py` — MQTT publishing and HA auto-discovery
 - `src/solartracker/inverter.py` — SMA inverter data from SBFspot SQLite DB (read-only)
 - `src/solartracker/config.py` — Environment variable configuration

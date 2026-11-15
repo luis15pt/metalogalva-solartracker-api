@@ -462,6 +462,7 @@ function updateUI(status) {
     el.modeAutoBtn.classList.toggle('active', !manual);
     document.querySelector('.controls-col').classList.toggle('locked', !manual);
     document.querySelectorAll('#dpad button, #presets button').forEach(b => { b.disabled = !manual; });
+    updateGoto(status, manual);
     setChip($('chip-mode'), manual ? 'Manual' : 'Auto tracking', manual ? 'warn' : 'ok');
 
     // Tracker clock (UTC)
@@ -732,6 +733,38 @@ async function connect() {
     return apiCall(`/serial/connect?port=${encodeURIComponent(port)}&baudrate=9600`, 'POST');
 }
 
+// Go-to-angle: sliders start at the current position and are left alone once touched
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+let gotoTouched = { alt: false, azi: false };
+
+function showGotoValues() {
+    $('goto-alt-out').textContent = `${$('goto-alt').value}°`;
+    const a = parseInt($('goto-azi').value, 10);
+    $('goto-azi-out').textContent = `${a}° ${COMPASS[Math.round(a / 45) % 8]}`;
+}
+
+function updateGoto(status, manual) {
+    const pos = status.position || {};
+    if (!gotoTouched.alt && pos.vertical != null) $('goto-alt').value = Math.round(pos.vertical);
+    if (!gotoTouched.azi && pos.horizontal != null) $('goto-azi').value = Math.round(pos.horizontal);
+    showGotoValues();
+    const g = status.goto || {};
+    $('goto-alt').disabled = $('goto-azi').disabled = !manual || g.active;
+    $('goto-btn').disabled = !manual || g.active;
+    const st = $('goto-status');
+    st.textContent = g.active ? `${g.message}… press ■ to stop` : (g.phase && g.phase !== 'idle' ? g.message : '');
+    st.className = 'goto-status ' + (g.active ? '' : g.phase || '');
+    if (!g.active && (g.phase === 'done' || g.phase === 'cancelled')) gotoTouched = { alt: false, azi: false };
+}
+
+async function goThere() {
+    const body = {};
+    if (gotoTouched.alt) body.altitude = parseFloat($('goto-alt').value);
+    if (gotoTouched.azi) body.azimuth = parseFloat($('goto-azi').value);
+    if (!Object.keys(body).length) throw new Error('Move a slider to choose where the panel should go');
+    return apiCall('/tracker/goto', 'POST', body);
+}
+
 async function nudge(dir, ms) {
     await apiCall(`/tracker/move/${dir}/start`, 'POST');
     await new Promise(r => setTimeout(r, ms));
@@ -779,6 +812,9 @@ function setup() {
         btn.addEventListener('click', () => nudge(btn.dataset.direction, 500).catch(e => alert(e.message)));
     });
     el.stopBtn.addEventListener('click', () => action(el.stopBtn, () => apiCall('/tracker/stop', 'POST')));
+    $('goto-alt').addEventListener('input', () => { gotoTouched.alt = true; showGotoValues(); });
+    $('goto-azi').addEventListener('input', () => { gotoTouched.azi = true; showGotoValues(); });
+    $('goto-btn').addEventListener('click', () => action($('goto-btn'), goThere));
     document.querySelectorAll('#presets button').forEach(btn => {
         btn.addEventListener('click', () => action(btn, () => apiCall(`/tracker/position/${btn.dataset.preset}`, 'POST')));
     });

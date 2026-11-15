@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=50">
+    <link rel="stylesheet" href="/static/style.css?v=52">
 </head>
 <body>
     <div class="container">
@@ -215,16 +215,28 @@
                         <button id="mode-auto-btn" class="btn btn-mode">Auto</button>
                     </div>
                     <div class="dpad dpad-sm" id="dpad">
-                        <button class="dpad-btn up" data-direction="up" title="Tilt up">&#9650;</button>
+                        <button class="dpad-btn up" data-direction="down" title="Tilt more upright">&#9650;</button>
                         <button class="dpad-btn left" data-direction="left" title="Rotate west">&#9664;</button>
                         <button class="dpad-btn center stop" id="stop-btn" title="Stop">&#9632;</button>
                         <button class="dpad-btn right" data-direction="right" title="Rotate east">&#9654;</button>
-                        <button class="dpad-btn down" data-direction="down" title="Tilt down">&#9660;</button>
+                        <button class="dpad-btn down" data-direction="up" title="Tilt toward flat">&#9660;</button>
                     </div>
                     <div class="presets" id="presets">
                         <button class="btn btn-sm btn-ghost" data-preset="horizontal" title="Lay the panel flat">Flat</button>
                         <button class="btn btn-sm btn-ghost" data-preset="maintenance" title="Stored maintenance position">Maint.</button>
                         <button class="btn btn-sm btn-ghost" data-preset="vertical" title="Most upright position">Upright</button>
+                    </div>
+                    <div class="goto" id="goto">
+                        <label>Tilt <output id="goto-alt-out">--</output>
+                            <input type="range" id="goto-alt" min="25" max="90" step="1" title="25 = most upright, 90 = flat">
+                            <span class="goto-ends"><span>upright</span><span>flat</span></span>
+                        </label>
+                        <label>Direction <output id="goto-azi-out">--</output>
+                            <input type="range" id="goto-azi" min="0" max="360" step="1" title="Compass direction the panel faces">
+                            <span class="goto-ends"><span>N</span><span>E</span><span>S</span><span>W</span><span>N</span></span>
+                        </label>
+                        <button id="goto-btn" class="btn btn-sm">Go there</button>
+                        <div class="goto-status" id="goto-status"></div>
                     </div>
                     <div class="hint" id="manual-hint">Switch to Manual to move the panel</div>
                 </div>
@@ -332,6 +344,6 @@
         <footer>Solar Tracker API v0.2.0</footer>
     </div>
 
-    <script src="/static/app.js?v=50"></script>
+    <script src="/static/app.js?v=52"></script>
 </body>
 </html>

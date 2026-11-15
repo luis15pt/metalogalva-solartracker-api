@@ -27,12 +27,14 @@ from .models import (
     ConnectionStatus,
     AlarmEntry,
     ObservedLimits,
+    GotoCommand,
 )
 from .serial_handler import serial_handler
 from .mqtt_handler import mqtt_handler
 from . import protocol
 from .protocol import Cmd
 from .inverter import router as inverter_router
+from .goto import GotoController, GotoError
 
 # Configure logging
 logging.basicConfig(
@@ -206,6 +208,14 @@ def _apply_status(st: dict):
     cs.link_ok = True
 
 
+async def _goto_changed():
+    current_status.goto = goto.state
+    await broadcast_status()
+
+
+goto = GotoController(serial_handler, lambda: current_status, _goto_changed)
+
+
 async def on_serial_data(data: bytes):
     """Handle bytes received from the serial port."""
     updated = False
@@ -218,6 +228,7 @@ async def on_serial_data(data: bytes):
             global _need_wind_read
             _log_state_changes(st, frame.raw)
             _apply_status(st)
+            goto.notify_frame()
             updated = True
             if _need_wind_read:
                 # Read-only query; the reply (0x51) fills in wind_settings
@@ -341,6 +352,7 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
 
+    await goto.cancel("Shutting down")
     await serial_handler.disconnect()
     await mqtt_handler.disconnect()
 
@@ -460,6 +472,7 @@ async def get_tracker_status():
 @app.post("/tracker/move", response_model=CommandResponse)
 async def move_tracker(command: MoveCommand):
     """Move tracker in a direction."""
+    await goto.cancel("Stopped by another command")
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
@@ -482,6 +495,7 @@ async def move_tracker(command: MoveCommand):
 @app.post("/tracker/move/{direction}/start", response_model=CommandResponse)
 async def start_move(direction: Direction):
     """Start moving in a direction (hold)."""
+    await goto.cancel("Stopped by another command")
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
@@ -495,6 +509,7 @@ async def start_move(direction: Direction):
 @app.post("/tracker/move/{direction}/stop", response_model=CommandResponse)
 async def stop_move(direction: Direction):
     """Stop moving in a direction."""
+    await goto.cancel("Stopped by another command")
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
@@ -508,6 +523,7 @@ async def stop_move(direction: Direction):
 @app.post("/tracker/stop", response_model=CommandResponse)
 async def stop_all():
     """Stop all movement."""
+    await goto.cancel("Stopped by another command")
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
@@ -521,6 +537,7 @@ async def stop_all():
 @app.post("/tracker/mode/{mode}", response_model=CommandResponse)
 async def set_mode(mode: OperatingMode):
     """Set operating mode."""
+    await goto.cancel("Stopped by another command")
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
@@ -625,6 +642,7 @@ async def go_to_preset_position(position: PresetPosition):
     - horizontal: panel flat
     - vertical: panel at its most upright (altitude 25 degrees)
     """
+    await goto.cancel("Stopped by another command")
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
     success = await serial_handler.go_to_position(position)
@@ -632,6 +650,27 @@ async def go_to_preset_position(position: PresetPosition):
         success=success,
         message=f"Going to {position.value} position" if success else "Command failed",
     )
+
+
+@app.post("/tracker/goto", response_model=CommandResponse)
+async def go_to_angle(command: GotoCommand):
+    """
+    Drive to a tilt (altitude) and/or azimuth and stop there. Manual mode only.
+
+    The Pi jogs the motors and watches the status frames; /tracker/stop aborts it.
+    """
+    if command.altitude is None and command.azimuth is None:
+        raise HTTPException(status_code=400, detail="Give an altitude, an azimuth or both")
+    if not serial_handler.is_connected or not current_status.link_ok:
+        raise HTTPException(status_code=400, detail="No link to the tracker")
+    if current_status.mode != OperatingMode.MANUAL:
+        raise HTTPException(status_code=409, detail="Switch to manual mode first")
+    try:
+        goto.start(command.altitude, command.azimuth)
+    except GotoError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    current_status.goto = goto.state
+    return CommandResponse(success=True, message="Move started")
 
 
 @app.post("/tracker/home", response_model=CommandResponse)
@@ -651,6 +690,7 @@ async def zero_panel(confirm: bool = False):
     """ZERAR PAINEL: start the tracker's homing routine. The tracker will move."""
     if not confirm:
         raise HTTPException(status_code=400, detail="Homing moves the tracker; pass confirm=true")
+    await goto.cancel("Stopped by another command")
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
     success = await serial_handler.zero_panel()

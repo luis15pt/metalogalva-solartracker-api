@@ -67,6 +67,21 @@ class ObservedLimits(BaseModel):
     last_updated: Optional[datetime] = Field(None, description="Last time a limit was updated")
 
 
+class GotoState(BaseModel):
+    """Progress of a go-to-angle move."""
+    active: bool = False
+    phase: str = Field("idle", description="idle, starting, tilt, rotation, done, failed or cancelled")
+    target_altitude: Optional[float] = None
+    target_azimuth: Optional[float] = None
+    message: str = ""
+
+
+class GotoCommand(BaseModel):
+    """Drive the panel to a tilt and/or azimuth (manual mode)."""
+    altitude: Optional[float] = Field(None, ge=25, le=90, description="Panel altitude: 90 = flat, 25 = most upright")
+    azimuth: Optional[float] = Field(None, ge=0, le=360, description="Panel azimuth, compass degrees")
+
+
 class TrackerStatus(BaseModel):
     """Full status of the solar tracker."""
     mode: OperatingMode = OperatingMode.MANUAL
@@ -90,6 +105,7 @@ class TrackerStatus(BaseModel):
     link_ok: bool = Field(False, description="True while status frames are arriving")
     frames_ok: int = 0
     frames_bad: int = 0
+    goto: GotoState = GotoState()
 
 
 class MoveCommand(BaseModel):

@@ -114,6 +114,7 @@ The `group_add` in docker-compose must match your system's dialout GID for seria
 | POST | `/tracker/mode/{mode}` | Set manual/automatic |
 | POST | `/tracker/stop` | Stop movement |
 | POST | `/tracker/position/{maintenance\|horizontal\|vertical}` | Drive to a stored position (manual mode) |
+| POST | `/tracker/goto` | Drive to a chosen tilt and/or azimuth and stop there: `{"altitude": 25–90, "azimuth": 0–360}` (manual mode; `/tracker/stop` aborts) |
 | POST | `/tracker/alarms/clear` | Clear alarms and the tracker's alarm log |
 | POST | `/tracker/wind` | Set the wind limit (km/h) |
 | POST | `/tracker/zero?confirm=true` | Start the homing routine (the tracker moves) |
