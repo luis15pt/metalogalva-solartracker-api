@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Solar Tracker Control</title>
-    <link rel="stylesheet" href="/static/style.css?v=45">
+    <link rel="stylesheet" href="/static/style.css?v=50">
 </head>
 <body>
     <div class="container">
@@ -13,12 +13,21 @@
             <h1>Solar Tracker</h1>
             <div class="status-badges">
                 <span class="badge" id="serial-status"><span class="dot"></span><span id="serial-text">Serial</span></span>
+                <span class="badge" id="link-status" title="Status frames arriving from the tracker"><span class="dot"></span>Tracker</span>
                 <span class="badge" id="ws-status"><span class="dot"></span><span id="ws-text">WS</span></span>
                 <span class="badge badge-info" id="last-update-badge">--</span>
             </div>
         </header>
 
-        <!-- Alarms Banner (only visible when active) -->
+        <!-- Link banner (no status frames from the tracker) -->
+        <div class="alarm-banner stale-banner" id="stale-banner" style="display:none">
+            <div class="alarm-banner-content">
+                <span class="alarm-icon">&#9888;</span>
+                <span id="stale-text" class="alarm-list">No data from the tracker. Values below are the last received.</span>
+            </div>
+        </div>
+
+        <!-- Alarms banner (faults and warnings only) -->
         <div class="alarm-banner" id="alarm-banner" style="display:none">
             <div class="alarm-banner-content">
                 <span class="alarm-icon">&#9888;</span>
@@ -138,6 +147,14 @@
                 </svg>
             </div>
 
+            <!-- Live readings -->
+            <div class="chips" id="chips">
+                <span class="chip" id="chip-mode">--</span>
+                <span class="chip" id="chip-wind">Wind -- km/h</span>
+                <span class="chip" id="chip-offset" title="Difference between panel and sun azimuth">Offset --</span>
+                <span id="chip-switches"></span>
+            </div>
+
             <!-- Gauges + Controls in one row -->
             <div class="dashboard-row">
                 <!-- Left: Gauges stacked -->
@@ -197,13 +214,19 @@
                         <button id="mode-manual-btn" class="btn btn-mode">Manual</button>
                         <button id="mode-auto-btn" class="btn btn-mode">Auto</button>
                     </div>
-                    <div class="dpad dpad-sm">
-                        <button class="dpad-btn up" data-direction="up">&#9650;</button>
-                        <button class="dpad-btn left" data-direction="left">&#9664;</button>
-                        <button class="dpad-btn center home" id="home-btn">&#8962;</button>
-                        <button class="dpad-btn right" data-direction="right">&#9654;</button>
-                        <button class="dpad-btn down" data-direction="down">&#9660;</button>
+                    <div class="dpad dpad-sm" id="dpad">
+                        <button class="dpad-btn up" data-direction="up" title="Tilt up">&#9650;</button>
+                        <button class="dpad-btn left" data-direction="left" title="Rotate west">&#9664;</button>
+                        <button class="dpad-btn center stop" id="stop-btn" title="Stop">&#9632;</button>
+                        <button class="dpad-btn right" data-direction="right" title="Rotate east">&#9654;</button>
+                        <button class="dpad-btn down" data-direction="down" title="Tilt down">&#9660;</button>
                     </div>
+                    <div class="presets" id="presets">
+                        <button class="btn btn-sm btn-ghost" data-preset="horizontal" title="Lay the panel flat">Flat</button>
+                        <button class="btn btn-sm btn-ghost" data-preset="maintenance" title="Stored maintenance position">Maint.</button>
+                        <button class="btn btn-sm btn-ghost" data-preset="vertical" title="Most upright position">Upright</button>
+                    </div>
+                    <div class="hint" id="manual-hint">Switch to Manual to move the panel</div>
                 </div>
             </div>
         </section>
@@ -237,75 +260,78 @@
             </div>
         </section>
 
-        <!-- Alarms -->
+        <!-- Tracker details -->
+        <section class="card collapsible" id="tracker-panel">
+            <div class="card-header clickable" data-toggle="tracker-panel">
+                <h2>Tracker</h2>
+                <span class="chevron">&#9660;</span>
+            </div>
+            <div class="card-body">
+                <dl class="kv">
+                    <dt>Wind now</dt><dd><span id="d-wind">--</span> km/h</dd>
+                    <dt>Wind alarm</dt><dd id="d-wind-settings">--</dd>
+                    <dt>Rotation encoder</dt><dd id="d-enc-rot">--</dd>
+                    <dt>Tilt encoder</dt><dd id="d-enc-tilt">--</dd>
+                    <dt>Tracker clock (UTC)</dt><dd id="d-clock">--</dd>
+                    <dt>Firmware</dt><dd id="firmware-version">--</dd>
+                    <dt>Alarm word</dt><dd id="d-alarm-word">--</dd>
+                    <dt>Frames ok / bad</dt><dd id="d-frames">--</dd>
+                </dl>
+            </div>
+        </section>
+
+        <!-- Alarm log kept by the tracker -->
         <section class="card collapsible" id="info-panel">
             <div class="card-header clickable" data-toggle="info-panel">
-                <h2>Alarm History</h2>
+                <h2>Alarm Log</h2>
                 <span class="chevron">&#9660;</span>
             </div>
             <div class="card-body">
                 <ul class="alarm-history" id="alarm-history">
-                    <li class="no-history">No alarm history</li>
+                    <li class="no-history">No alarms logged</li>
                 </ul>
-                <button id="clear-history-btn" class="btn btn-sm btn-ghost" style="margin-top:8px">Clear History</button>
+                <div class="hint">Last time each alarm fired, as stored in the tracker (UTC). "Clear" erases this log.</div>
             </div>
         </section>
 
-        <!-- Connection (collapsible, collapsed by default when connected) -->
+        <!-- Setup (collapsed by default) -->
         <section class="card collapsible collapsed" id="connection-panel">
             <div class="card-header clickable" data-toggle="connection-panel">
-                <h2>Connection</h2>
+                <h2>Setup</h2>
                 <span class="chevron">&#9660;</span>
             </div>
             <div class="card-body">
+                <h3>Serial port</h3>
                 <div class="form-row">
                     <select id="port-select"><option value="">Select port...</option></select>
                     <button id="refresh-ports-btn" class="btn btn-sm btn-ghost">Refresh</button>
                 </div>
                 <div class="form-row">
-                    <select id="baudrate-select">
-                        <option value="9600" selected>9600</option>
-                        <option value="19200">19200</option>
-                        <option value="38400">38400</option>
-                        <option value="57600">57600</option>
-                        <option value="115200">115200</option>
-                    </select>
-                </div>
-                <div class="form-row">
                     <button id="connect-btn" class="btn btn-success">Connect</button>
                     <button id="disconnect-btn" class="btn btn-danger" disabled>Disconnect</button>
                 </div>
+                <h3>Tracker settings</h3>
                 <div class="form-row">
-                    <button id="sync-clock-btn" class="btn btn-sm btn-ghost">&#8635; Sync Clock</button>
+                    <button id="sync-clock-btn" class="btn btn-sm btn-ghost">&#8635; Sync clock to UTC</button>
                 </div>
-                <div style="margin-top:8px;color:var(--text-dim);font-size:0.8rem">
-                    Firmware: <span id="firmware-version">--</span>
+                <div class="form-row">
+                    <input type="text" id="max-wind-input" inputmode="numeric" placeholder="Wind limit km/h">
+                    <button id="set-wind-btn" class="btn btn-sm btn-ghost">Set wind limit</button>
+                </div>
+                <h3>Commissioning</h3>
+                <div class="form-row">
+                    <button id="zero-btn" class="btn btn-sm btn-danger">Zero panel (homing)</button>
+                </div>
+                <div class="hint">Homing moves the tracker to find its reference. Use only when someone is at the tracker.</div>
+                <div class="form-row" style="margin-top:8px">
+                    <button id="reset-limits-btn" class="btn btn-sm btn-ghost">Reset observed range</button>
                 </div>
             </div>
         </section>
 
-
-        <footer>Solar Tracker API v0.1.0</footer>
+        <footer>Solar Tracker API v0.2.0</footer>
     </div>
 
-    <!-- Hidden elements for JS compat -->
-    <div style="display:none">
-        <button id="stop-btn"></button>
-        <button id="stow-btn"></button>
-        <button id="send-raw-btn"></button>
-        <input id="raw-hex">
-        <pre id="debug-log"></pre>
-        <div id="debug-panel"></div>
-    </div>
-    <input type="hidden" id="max-wind-input" value="0">
-    <button id="set-wind-btn" style="display:none"></button>
-    <span id="limit-h-min" style="display:none"></span>
-    <span id="limit-h-max" style="display:none"></span>
-    <span id="limit-v-min" style="display:none"></span>
-    <span id="limit-v-max" style="display:none"></span>
-    <span id="limits-since" style="display:none"></span>
-    <button id="reset-limits-btn" style="display:none"></button>
-
-    <script src="/static/app.js?v=45"></script>
+    <script src="/static/app.js?v=50"></script>
 </body>
 </html>

@@ -1,676 +1,217 @@
-# Metalogalva Solar Tracker Serial Protocol
+# Metalogalva Solar Tracker Serial Protocol (STS.2A firmware V2.31)
 
-## Overview
+Re-derived in November 2026 from two independent sources that agree with each other:
 
-This document describes the serial protocol used by the Metalogalva solar tracker (STS.2A firmware V2.31).
+- **Firmware** `STS.2A_V2.31.abs.s19` (Freescale HCS12), disassembled: SCI0 receive ISR `0xF3DD`,
+  frame validator `0xF158`, command dispatcher `0x56E0`, frame transmitter `0xF1B1`,
+  status builder `0x609B`, alarm latch `0x67EF`.
+- **STcontrol V4.0.4.0.exe** (Delphi): every command builder, and the receive parser
+  `ComPort1RxChar` at `0x48626C`.
 
-**Reverse engineering sources:**
-- STcontrol V4.0.4.0.exe (Windows control application)
-- Direct COM port capture with Device Monitoring Studio (February 2026)
-- HCS12 firmware disassembly (STS.2A_V2.31.abs.s19)
+Confidence markers used below: **[FW]** read from firmware, **[APP]** read from the Windows app,
+**[LIVE]** seen on the real tracker. On 2026-11-15 live status frames were captured and decoded
+with valid checksums (132 bytes, one per second), confirming the frame format and status layout.
+No command has been re-tested by transmitting to the tracker.
 
-## Connection Settings
+This replaces the earlier document, which had several errors. See "Corrections" at the end.
 
-| Parameter | Value |
-|-----------|-------|
-| Baud Rate | 9600 (default, configurable) |
-| Data Bits | 8 |
-| Parity | None |
-| Stop Bits | 1 |
-| Flow Control | None |
+## Link
 
-## Packet Structure
+9600 baud, 8N1, no flow control. The tracker is address `0x01`; the PC uses `0x00`.
 
-The protocol uses variable-length packets with different structures based on the packet type (byte 5).
-
-### Movement Commands (10 bytes, type 0x02)
+## Frame format [FW][APP]
 
 ```
-+------+------+------+------+------+------+------+------+------+----------+
-| 0x81 | 0xFF | 0x00 | 0x82 | 0x00 | 0x02 | CMD  | DIR  | 0x83 | CHECKSUM |
-+------+------+------+------+------+------+------+------+------+----------+
-  [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]      [9]
+81  DST  SRC  82  LEN_HI  LEN_LO  CMD  DATA[LEN-1]  83  CHK
 ```
 
-### Clear Alarms Command (9 bytes, type 0x01)
-
-```
-+------+------+------+------+------+------+------+------+----------+
-| 0x81 | 0xFF | 0x00 | 0x82 | 0x00 | 0x01 | 0x40 | 0x83 | CHECKSUM |
-+------+------+------+------+------+------+------+------+----------+
-  [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]      [8]
-```
-
-### Status Request (9 bytes, type 0x08)
-
-```
-+------+------+------+------+------+------+------+------+----------+
-| 0x81 | 0xFF | 0x00 | 0x82 | 0x00 | 0x08 | 0x30 | 0x83 | CHECKSUM |
-+------+------+------+------+------+------+------+------+----------+
-  [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]      [8]
-```
-
-### Byte Descriptions
-
-| Byte | Value | Description |
-|------|-------|-------------|
-| 0 | 0x81 | Header / Device address |
-| 1 | 0xFF | Broadcast/Unknown (constant) |
-| 2 | 0x00 | Reserved (constant) |
-| 3 | 0x82 | Command group identifier |
-| 4 | 0x00 | Reserved (constant) |
-| 5 | TYPE | Packet type: 0x01=alarm, 0x02=movement, 0x08=status |
-| 6 | CMD | Command type (see below) |
-| 7 | DIR/FOOTER | Direction (for movement) or Footer (0x83 for others) |
-| 8 | 0x83/CHECKSUM | Footer marker (movement) or Checksum (others) |
-| 9 | CHECKSUM | Checksum (movement only) |
-
-## Packet Types (Byte 5)
-
-| Type | Size | Description |
-|------|------|-------------|
-| 0x01 | 9 | Mode/Query/Alarm commands |
-| 0x02 | 10 | Movement commands |
-| 0x03 | 11 | Configuration commands |
-| 0x08 | 9 | Status request |
-| 0x09 | 16 | Settings commands (GPS location) |
-
-## Command Reference (Byte 6)
-
-### Movement Commands (Type 0x02) - CORRECTED Feb 2026
-
-**Format:** `81 FF 00 82 00 02 [CMD] 01 83 [CHECKSUM]`
-
-| Cmd | Hex | Description | Full Packet |
-|-----|-----|-------------|-------------|
-| RIGHT | 0x20 | Rotate East | `81 FF 00 82 00 02 20 01 83 A8` |
-| LEFT | 0x21 | Rotate West | `81 FF 00 82 00 02 21 01 83 A9` |
-| UP | 0x22 | Tilt up | `81 FF 00 82 00 02 22 01 83 AA` |
-| DOWN | 0x23 | Tilt down | `81 FF 00 82 00 02 23 01 83 AB` |
-| STOP | 0x24 | Stop all | `81 FF 00 82 00 02 24 01 83 AC` |
-| POS_1 | 0x25 | Preset position 1 (from firmware) | `81 FF 00 82 00 02 25 01 83 AD` |
-| POS_2 | 0x26 | Preset position 2 - HOME? (from firmware) | `81 FF 00 82 00 02 26 01 83 AE` |
-| POS_3 | 0x27 | Preset position 3 - STOW? (from firmware) | `81 FF 00 82 00 02 27 01 83 AF` |
-
-**Note:** Byte 7 is always 0x01 for movement commands.
-
-### Mode Commands (Type 0x01) - CONFIRMED Feb 2026
-
-**Format:** `81 FF 00 82 00 01 [CMD] 83 [CHECKSUM]`
-
-| Cmd | Hex | Description | Full Packet |
-|-----|-----|-------------|-------------|
-| MANUAL | 0x10 | Switch to manual mode | `81 FF 00 82 00 01 10 83 96` |
-| AUTO | 0x11 | Switch to automatic mode | `81 FF 00 82 00 01 11 83 97` |
-
-### Query Commands (Type 0x01)
-
-| Cmd | Hex | Description | Full Packet |
-|-----|-----|-------------|-------------|
-| ALARM_QUERY | 0x31 | Query alarm status | `81 FF 00 82 00 01 31 83 B7` |
-| QUERY_32 | 0x32 | Unknown query | `81 FF 00 82 00 01 32 83 B8` |
-| QUERY_35 | 0x35 | Unknown query | `81 FF 00 82 00 01 35 83 BB` |
-| QUERY_36 | 0x36 | Unknown query | `81 FF 00 82 00 01 36 83 BC` |
-| CLEAR_ALARMS | 0x40 | Clear all alarms | `81 FF 00 82 00 01 40 83 C6` |
-
-### Configuration Commands (Type 0x03) - NEW Feb 2026
-
-**Format:** `81 FF 00 82 00 03 [CMD] [P1] [P2] 83 [CHECKSUM]`
-
-| Cmd | Hex | Description | Full Packet |
-|-----|-----|-------------|-------------|
-| ZERO_PANEL | 0x34 | Reset panel position (ZERAR PAINEL) | `81 FF 00 82 00 03 34 00 00 83 BC` |
-
-### Status Commands (Type 0x08)
-
-| Cmd | Hex | Description | Full Packet |
-|-----|-----|-------------|-------------|
-| STATUS | 0x30 | Request current status | `81 FF 00 82 00 08 30 83 BD` |
-
-### Settings Commands (Type 0x09) - NEW Feb 2026
-
-**Format:** `81 FF 00 82 00 09 [CMD] [DATA...] 83 [CHECKSUM]`
-
-| Cmd | Hex | Description | Data Format |
-|-----|-----|-------------|-------------|
-| DATE_TIME | 0x32 | Set tracker date/time | 7 bytes: YEAR MONTH DAY HOUR MIN SEC 00 |
-| GPS_LOCATION | 0x33 | Set tracker GPS location | 8 bytes: LAT (float32 LE) + LON (float32 LE) |
-
-**Example Date/Time command (16 bytes):**
-```
-81 FF 00 82 00 09 32 1A 02 0E 0A 1E 00 00 83 XX
-                    [Y][M][D][H][M][S][R]
-Year:   26 (0x1A) = 2026
-Month:  2  (0x02) = February
-Day:    14 (0x0E) = 14th
-Hour:   10 (0x0A) = 10:00
-Minute: 30 (0x1E) = :30
-Second: 0  (0x00) = :00
-Reserved: 0x00
-```
-
-**Example GPS command (16 bytes):**
-```
-81 FF 00 82 00 09 33 06 2D 22 42 39 2E 0B C1 83 8B
-                    └──LAT──┘ └──LON──┘
-Latitude:  40.5440° N (bytes 06 2D 22 42 as little-endian float)
-Longitude: -8.6988° W (bytes 39 2E 0B C1 as little-endian float)
-Location: Portugal (Coimbra/Aveiro region)
-```
-
-## Legacy Direction Codes (Deprecated)
-
-These were the old interpretation before direct serial capture:
-
-| Value | Direction |
-|-------|-----------|
-| 0x00 | Stop |
-| 0x01 | Down (Tilt down) |
-| 0x02 | Up (Tilt up) |
-| 0x03 | Left (Rotate West) |
-| 0x04 | Right (Rotate East) |
-
-**Note:** The actual protocol uses command codes 0x20-0x27 directly, not direction bytes.
-
-## Checksum Calculation
-
-The checksum is calculated as the sum of bytes 0-8, modulo 256:
-
-```python
-def calculate_checksum(data: bytes) -> int:
-    """Calculate checksum for a 9-byte packet."""
-    return sum(data[:9]) & 0xFF
-```
-
-## Example Commands
-
-### Movement Commands (Corrected Feb 2026)
-
-```
-Move Down:  81 FF 00 82 00 02 23 01 83 AB  (Cmd 0x23 = DOWN)
-Move Up:    81 FF 00 82 00 02 22 01 83 AA  (Cmd 0x22 = UP)
-Move Left:  81 FF 00 82 00 02 21 01 83 A9  (Cmd 0x21 = LEFT/West)
-Move Right: 81 FF 00 82 00 02 20 01 83 A8  (Cmd 0x20 = RIGHT/East)
-Stop All:   81 FF 00 82 00 02 24 01 83 AC  (Cmd 0x24 = STOP)
-```
-
-### Mode Commands
-
-```
-Manual Mode: 81 FF 00 82 00 01 10 83 96
-Auto Mode:   81 FF 00 82 00 01 11 83 97
-```
-
-## Firmware-Discovered Commands (from STS.2A_V2.31)
-
-Complete analysis of HCS12 firmware revealed 23 total commands:
-
-### Preset Position Commands (Type 0x02)
-
-| Cmd | Hex | Description | Status |
-|-----|-----|-------------|--------|
-| POS_1 | 0x25 | Preset position 1 | Implemented (untested) |
-| POS_2 | 0x26 | Preset position 2 (HOME?) | Implemented (untested) |
-| POS_3 | 0x27 | Preset position 3 (STOW?) | Implemented (untested) |
-
-### Extended Control Commands (Type 0x01)
-
-| Cmd | Hex | Sub-cmds | Description | Status |
-|-----|-----|----------|-------------|--------|
-| EXTENDED_CTRL_A | 0x41 | 0x02, 0x03, 0x0A | Advanced calibration | Implemented (untested) |
-| EXTENDED_CTRL_B | 0x42 | 0x03, 0x07 | GPS/Position data operations | Implemented (untested) |
-
-**Example: Query GPS Data**
-```
-81 FF 00 82 00 01 42 07 83 [CHECKSUM]
-```
-
-### Diagnostic Commands (Type 0x01) - USE WITH CAUTION
-
-| Cmd | Hex | Sub-cmd | Description | Status |
-|-----|-----|---------|-------------|--------|
-| DIAG_DEBUG | 0xF0 | 0x0D | Enter debug/diagnostic mode | Implemented (untested) |
-| DIAG_FIRMWARE | 0xF1 | - | Firmware information | Implemented (untested) |
-| DIAG_EXTENDED | 0xF2 | - | Extended diagnostics | Implemented (untested) |
-
-**Warning:** Diagnostic commands may put the tracker in unexpected states. Use only for debugging.
-
-### Memory Locations (HCS12 Firmware)
-
-| Address | Purpose |
-|---------|---------|
-| 0x1854 | Movement direction register |
-| 0x1859 | Movement enable flag |
-| 0x185A | Secondary movement flag |
-| 0x12CD-0x12D3 | RTC memory (date/time) |
-| 0x12CE-0x12D2 | GPS/position data |
-| 0x15B0-0x15B2 | Secondary position data |
-| 0x1501 | Debug mode flag |
-
-### Default Calibration Constants (from 0x30BE00)
-
-| Value | Purpose |
+| Field | Meaning |
 |-------|---------|
-| 41.25° | Default Latitude (northern Portugal) |
-| -8.30° | Default Longitude (northern Portugal) |
-| 85.0° | Maximum elevation angle |
-| 270.0° | Azimuth reference (West) |
-| 5.0 m/s | Wind speed threshold |
-
-### Date/Time Validation Ranges
-
-| Field | Range | Hex Max |
-|-------|-------|---------|
-| Month | 1-12 | 0x0C |
-| Day | 1-31 | 0x1F |
-| Hour | 0-23 | 0x17 |
-| Minute | 0-59 | 0x3B |
-| Second | 0-59 | 0x3B |
-
-### Stop Moving Up
-
-```
-81 FF 00 82 00 02 24 02 83 AD
-```
-
-### Start Moving Left (West)
-
-```
-81 FF 00 82 00 02 23 03 83 AD
-```
-
-### Start Moving Right (East)
-
-```
-81 FF 00 82 00 02 23 04 83 AE
-```
-
-### Clear All Alarms
-
-```
-81 FF 00 82 00 01 40 83 C6
-```
-- Packet Type: 0x01 (Alarm)
-- Command: 0x40 ('@' - Clear alarms)
-- Checksum: 0xC6 (sum of bytes 0-7)
-
-### Request Status
-
-```
-81 FF 00 82 00 08 30 83 BD
-```
-- Packet Type: 0x08 (Status)
-- Command: 0x30 ('0' - Request status)
-- Checksum: 0xBD (sum of bytes 0-7)
-
-## Python Implementation
-
-```python
-def build_movement_command(direction: int, start: bool = True) -> bytes:
-    """
-    Build a movement command packet.
-
-    Args:
-        direction: 0=stop, 1=down, 2=up, 3=left, 4=right
-        start: True for start command, False for stop
-
-    Returns:
-        10-byte command packet
-    """
-    cmd = 0x23 if start else 0x24
-    packet = bytes([0x81, 0xFF, 0x00, 0x82, 0x00, 0x02, cmd, direction, 0x83])
-    checksum = sum(packet) & 0xFF
-    return packet + bytes([checksum])
-```
-
-## Notes
-
-- Commands are sent when mouse button is pressed (start) and released (stop)
-- The tracker moves continuously while the command is active
-- A stop command should always be sent when releasing the control
-
-## Discovered Commands Summary
-
-| Command | Byte 5 | Byte 6 | Size | Status |
-|---------|--------|--------|------|--------|
-| Movement Start | 0x02 | 0x23 | 10 | Implemented |
-| Movement Stop | 0x02 | 0x24 | 10 | Implemented |
-| Clear Alarms | 0x01 | 0x40 | 9 | Implemented |
-| Request Status | 0x08 | 0x30 | 9 | Implemented |
-
-## Status Response Format
-
-The tracker responds to status requests with packets of 38+ bytes. Extended packets (134+ bytes) include firmware version string.
-
-### Response Header
-
-```
-81 00 01 82 00 7c 50
-```
-
-Note: The 0x7c (124) byte may indicate expected payload length.
-
-### Response Packet Structure (38 bytes minimum)
-
-```
-┌────────┬────────┬─────────────┬────────────────────────────────┐
-│ Offset │ Length │ Type        │ Description                    │
-├────────┼────────┼─────────────┼────────────────────────────────┤
-│ 0-6    │ 7      │ bytes       │ Header: 81 00 01 82 00 7c 50   │
-│ 7      │ 1      │ byte        │ Mode: 0x00=AUTO, 0x01=MANUAL   │
-│ 8      │ 1      │ uint8       │ Day (1-31)                     │
-│ 9      │ 1      │ uint8       │ Month (1-12)                   │
-│ 10     │ 1      │ uint8       │ Year (offset from 2000)        │
-│ 11     │ 1      │ uint8       │ Second (0-59)                  │
-│ 12     │ 1      │ uint8       │ Minute (0-59)                  │
-│ 13     │ 1      │ uint8       │ Hour (0-23)                    │
-│ 14-15  │ 2      │ bytes       │ Reserved/Unknown               │
-│ 16-19  │ 4      │ float32 LE  │ Panel Vertical/Tilt (degrees from vertical: 90°=flat/stowed, 0°=vertical) │
-│ 20     │ 1      │ uint8       │ Status flags (dynamic, motor/encoder related - see below) │
-│ 21     │ 1      │ uint8       │ Unknown (observed: 0x14)       │
-│ 22-25  │ 4      │ float32 LE  │ Panel Horizontal/Azi (degrees) │
-│ 26-29  │ 4      │ float32 LE  │ Sun Altitude (degrees)         │
-│ 30-33  │ 4      │ float32 LE  │ Sun Azimuth (degrees)          │
-│ 34-36  │ 3      │ bytes       │ Reserved/Padding               │
-│ 37     │ 1      │ uint8       │ Alarm bitmask                  │
-└────────┴────────┴─────────────┴────────────────────────────────┘
-```
-
-### Float Values
-
-All float values are IEEE 754 single-precision (32-bit) in **little-endian** byte order.
-
-### Alarm Bitmask (Byte 37)
-
-| Bit | Mask | Alarm Type | Description |
-|-----|------|------------|-------------|
-| 0 | 0x01 | Vertical limit | Vertical limit reached |
-| 1 | 0x02 | Unknown | Previously thought to be tilt limit |
-| 2 | 0x04 | West limit | West rotation limit reached |
-| 3 | 0x08 | Tilt limit flat / panel stowed | CONFIRMED: activates when panel is at 90 degrees vertical (flat/stowed at night), clears at sunrise when tracking begins |
-| 4 | 0x10 | Actuator current | Tilt motor overcurrent |
-| 5 | 0x20 | Rotation current | Rotation motor overcurrent |
-| 6 | 0x40 | Unknown | TBD |
-| 7 | 0x80 | Encoder error | Encoder/limit sensor malfunction - BLOCKS ALL MOVEMENT until cleared |
-
-**Note:** Alarm bytes with values >= 0xF0 are treated as corrupt/garbage data and should be ignored.
-
-**Note:** The "tilt limit flat" alarm (bit 3, 0x08) is **normal when stowed** - it activates when the panel is at 90 degrees vertical (flat/stowed position at night) and clears automatically at sunrise when tracking begins.
-
-### Extended Response (134+ bytes)
-
-Extended packets include firmware version string near the end:
-- Marker: `Version ` (or `Versio\x00n ` with null byte)
-- Followed by version number (e.g., `2.31`)
-- Terminated by footer byte `0x83`
-
-### Example Response Parsing (Python)
-
-```python
-import struct
-
-def parse_response(data: bytes) -> dict:
-    if len(data) < 38:
-        return None
-
-    return {
-        "date": {
-            "day": data[8],
-            "month": data[9],
-            "year": 2000 + data[10],
-            "second": data[11],
-            "minute": data[12],
-            "hour": data[13],
-        },
-        "panel_vertical": struct.unpack('<f', data[16:20])[0],
-        "panel_horizontal": struct.unpack('<f', data[22:26])[0],
-        "sun_altitude": struct.unpack('<f', data[26:30])[0],
-        "sun_azimuth": struct.unpack('<f', data[30:34])[0],
-        "alarm_byte": data[37],
-    }
-```
-
-## Status Flags Byte (Offset 20)
-
-Byte 20 is a dynamic status/flags byte that changes rapidly during panel movement. It is NOT a static mode indicator.
-
-### Observed Values
-
-| Value | Hex | Context |
-|-------|-----|---------|
-| 0x26 | 00100110 | During movement |
-| 0x45 | 01000101 | During movement |
-| 0x8C | 10001100 | During movement |
-| 0xD2 | 11010010 | During movement |
-| 0x17 | 00010111 | During movement |
-| 0x59 | 01011001 | During movement |
-| 0xCF | 11001111 | Error/Alarm state |
-| 0x0E | 00001110 | Active tracking |
-
-This byte appears to be motor/encoder related status that changes as the panel moves. Do not use it as a mode indicator.
-
-### Important Discovery
-
-When the tracker shows status 0xCF:
-- The **Clear Alarms command (0x40)** must be sent
-- This changes status to 0x0E and enables tracking
-- The tracker then automatically moves to track the sun
-
-**Note:** The actual alarm byte is at offset 37, not this byte.
-
-## Known Issues
-
-### Clear Alarms Required on Startup
-
-When the tracker shows status byte 0xCF (error state), send the **Clear Alarms command**:
-```
-81 FF 00 82 00 01 40 83 C6
-```
-This clears the error state and enables automatic sun tracking.
-
-### Encoder Error / Motor Actuator Error ("Erro no encoder do motor actuador")
-
-**Critical Issue:** When the tilt axis encoder fails to detect the end-of-travel position, the actuator motor continues past its intended limit, potentially tilting the panel in the wrong direction.
-
-**Symptoms:**
-- Panel tilts past horizontal (>90° vertical reading)
-- `tilt_limit_flat` alarm (0x02) active but movement doesn't stop
-- After stopping, all movement commands are blocked in both directions
-
-**Behavior when encoder error is active:**
-- The tracker will NOT respond to any movement commands (up, down, left, right)
-- Manual mode commands are ignored
-- Auto tracking is disabled
-
-**Recovery procedure:**
-1. **Clear alarms** - This re-enables movement commands
-2. **Manually reposition** - Move the panel back to a safe position
-3. **Inspect hardware** - The encoder/limit sensor needs physical inspection
-
-**Root cause:** The encoder or limit switch on the tilt actuator is not detecting the end-of-travel position. This is a hardware issue requiring physical repair - typically:
-- Faulty limit switch
-- Damaged encoder
-- Wiring issue
-- Mechanical obstruction preventing sensor activation
-
-**Warning:** After clearing alarms, if you command movement toward the faulty limit, the panel will overshoot again. Only move in the opposite direction until the sensor is repaired.
-
-### Rotation Encoder Reading in Auto Mode
-
-**Note:** When in auto tracking mode (byte[7]=0x00, the default mode), the horizontal position at bytes [20-24] may read as 0.00 degrees. This does NOT necessarily indicate an encoder failure.
-
-In auto mode:
-- The actual panel horizontal position is at bytes [30-34]
-- This value tracks the sun azimuth (within ~0.2 degrees)
-- The tracker is functioning correctly even if [20-24] shows 0.00 degrees
-
-**True encoder failure symptoms:**
-- Panel physically doesn't rotate when sun moves
-- STcontrol shows "encoder error" alarm
-- Alarm byte includes 0x80 (encoder_error bit)
-- Manual rotation commands have no effect AND [30-34] doesn't track sun
-
-### Alarm Query Command (DISCOVERED February 2026)
-
-**IMPORTANT:** The alarm bitmask in the standard status response (byte 37) may only show a subset of alarms. The **Type 0x01, Command 0x31** query can provide more complete alarm information. Note: alarm byte values >= 0xF0 should be treated as corrupt data and ignored.
-
-#### Alarm Query Command (9 bytes)
-
-```
-+------+------+------+------+------+------+------+------+----------+
-| 0x81 | 0xFF | 0x00 | 0x82 | 0x00 | 0x01 | 0x31 | 0x83 | CHECKSUM |
-+------+------+------+------+------+------+------+------+----------+
-  [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]      [8]
-```
-
-Checksum: `0xB9` (sum of bytes 0-7)
-
-Full command: `81 FF 00 82 00 01 31 83 B9`
-
-#### Alarm Query Response
-
-The response includes a **short packet** containing the alarm bitmask:
-
-```
-+------+------+------+------+------+------+-------+------+----------+
-| 0x81 | 0x00 | 0x01 | 0x82 | 0x00 | 0x01 | ALARM | 0x83 | CHECKSUM |
-+------+------+------+------+------+------+-------+------+----------+
-  [0]    [1]    [2]    [3]    [4]    [5]    [6]     [7]      [8]
-```
-
-**Byte [6] contains the actual alarm bitmask.**
-
-#### Alarm Bitmask (from Query Response)
-
-| Bit | Mask | Alarm Type | Description |
-|-----|------|------------|-------------|
-| 0 | 0x01 | Vertical limit | Vertical limit reached |
-| 1 | 0x02 | Unknown | Previously thought to be tilt limit |
-| 2 | 0x04 | West limit | West rotation limit reached |
-| 3 | 0x08 | Tilt limit flat / panel stowed | Activates at 90 degrees vertical (flat/stowed), clears at sunrise |
-| 4 | 0x10 | Actuator current | Tilt motor overcurrent |
-| 5 | 0x20 | Rotation current | Rotation motor overcurrent |
-| 6 | 0x40 | Unknown | TBD |
-| 7 | 0x80 | Encoder error | Motor actuator encoder fault - BLOCKS ALL MOVEMENT |
-
-#### Example
-
-Query: `81 FF 00 82 00 01 31 83 B9`
-
-Response includes: `81 00 01 82 00 01 86 83 0E`
-
-Alarm byte: **0x86** = 10000110
-- Bit 7 (0x80): Encoder error
-- Bit 2 (0x04): West limit
-- Bit 1 (0x02): Unknown
-
-#### Why Byte [37] in Status Response Differs
-
-The standard status response (Type 0x08) only shows a **subset** of alarms in byte [37]. This appears to be position-related status flags only (e.g., tilt_limit_flat). For the **complete alarm state**, always use the Type 0x01 Command 0x31 query.
-
-#### Important: Short Packet Appearance is Conditional
-
-**NOTE:** The short alarm packet may not always appear in the response. During testing, it was observed to:
-- Appear reliably when multiple alarms are active (encoder error + limit)
-- Stop appearing after alarms are cleared or tracker state changes
-- Possibly only appear when there are NEW or ACTIVE alarms to report
-
-If the short packet is not present, fall back to reading byte [37] from the standard status response, understanding it may only show a subset of alarms.
-
-**Recommended approach:**
-1. Send Type 0x01 Command 0x31
-2. Search response for short packet pattern `81 00 01 82 00 01 XX 83`
-3. If found, XX is the full alarm bitmask
-4. If not found, use byte [37] from standard status as fallback
-
-### Packet Mode Byte [7] - Two Response Formats
-
-The response packet has two different structures depending on byte [7].
-
-**Mode detection is inverted from what you might expect:** 0x00 = AUTO (default tracking mode), 0x01 = MANUAL. The tracker returns 0x00 when actively auto-tracking the sun.
-
-#### Mode 0x01 (Manual Mode / Detailed Status)
-```
-Byte [7]  = 0x01
-Byte [8]  = Day
-Byte [9]  = Month
-Byte [10] = Year (offset from 2000)
-Byte [11] = Second
-Byte [12] = Minute
-Byte [13] = Hour
-Bytes [16-19] = Panel Vertical/Tilt (float, degrees)
-Bytes [22-25] = Panel Horizontal (float, degrees)
-Bytes [26-29] = Sun Altitude (float, degrees)
-Bytes [30-33] = Sun Azimuth (float, degrees)
-Byte [37] = Alarm bitmask
-```
-
-#### Mode 0x00 (Auto Tracking Mode)
-```
-Byte [7]  = 0x00
-Bytes [8-15] = Date/time (different format)
-Bytes [16-19] = Panel Tilt (float, angle from vertical: 90°=flat/stowed, 0°=vertical)
-Bytes [22-25] = Sun Azimuth (float, degrees)
-Bytes [26-29] = Sun Altitude (float, degrees)
-Bytes [30-33] = Panel Horizontal / Target (float, degrees - tracks sun azimuth)
-Byte [37] = Alarm bitmask
-```
-
-**Key Discovery (February 2026):**
-- **Mode 0x00 = AUTO TRACKING MODE** (the default mode, not an error state)
-- **Mode 0x01 = MANUAL MODE** (mode detection is inverted from intuitive expectation)
-- When byte[7]=0x00, the tracker is actively following the sun
-- [30:34] closely matches sun azimuth (within 0.2 degrees) and changes as sun moves
-- Panel tilt [16:20] shows current angle from vertical (90 degrees = flat/stowed, 0 degrees = vertical/pointing up)
-- Verified by physical observation: panel orientation matches reported values
-
-**Observations:**
-- Mode 0x01: Used during manual control, provides detailed position data
-- Mode 0x00: Active during automatic sun tracking
-- The horizontal encoder reading may show 0.00° but [30:34] shows actual tracking position
-
-### Additional Status Bytes Discovered (February 2026)
-
-During testing, these bytes were found to contain dynamic data:
-
-| Byte | Observed Values | Likely Purpose |
-|------|-----------------|----------------|
-| [14] | 0x0A-0xE4 (varies rapidly) | Movement counter, encoder position, or ADC value |
-| [15] | 0x01-0x08 (increments) | Movement duration counter - increments during active movement |
-| [37] | Alarm bitmask | Alarm byte (see Alarm Bitmask section) |
-
-**Key observations:**
-- Byte [37] is the alarm bitmask (confirmed to match ALARM_BYTE = 37 in protocol.py)
-- Alarm byte values >= 0xF0 are corrupt/garbage data and should be ignored
-- Bytes [14-15] appear to be movement/encoder related counters, not alarm flags
-- Rotation movement commands are blocked while tilt commands work - suggesting separate alarm handling per axis
-
-### Manual Movement Commands Not Working in Auto Mode
-
-Movement commands (type 0x02) are correctly formatted and acknowledged, but **no physical movement occurs when in AUTO mode** (status 0x0E). The tracker prioritizes sun tracking over manual commands.
-
-To enable manual control, a **mode switch command** is needed (not yet discovered). Likely candidates:
-- Packet type 0x03 with specific parameters
-- Or a completely different command structure
-
-### Recommended Next Steps for Manual Mode
-
-1. **Capture real traffic** - Run STcontrol.exe on a Windows machine with a serial sniffer to capture:
-   - The exact command sent when clicking "CONTROLO MANUAL" button
-   - The mode switch sequence
-2. **Check physical controls** - Some trackers have a physical Auto/Manual switch
-3. **Contact manufacturer** - Request protocol documentation from Metalogalva
-
-## TODO: Additional Commands
-
-The following commands still need further investigation:
-
-- [x] **Set Auto/Manual mode** - IMPLEMENTED (Type 0x01, Cmd 0x10=manual, 0x11=auto)
-- [x] **Time synchronization** - IMPLEMENTED (Type 0x09, Cmd 0x32 - from firmware analysis)
-- [ ] Set East/West limits (uses 16-byte packets with float values)
-- [ ] Set max wind threshold
-
----
-
-*Protocol reverse-engineered from STcontrol V4.0.4.0.exe using radare2*
-*Response format discovered through empirical analysis (January 2026)*
+| `81` | Start of frame. The receiver ignores everything until it sees `0x81`. |
+| DST | Destination address. The tracker accepts `0x01` or `0xFF` (broadcast). |
+| SRC | Sender address. Replies are sent back to it. STcontrol uses `0x00`. |
+| `82` | Fixed. |
+| LEN | 16-bit big-endian count of CMD + DATA bytes. |
+| CMD | Command code. |
+| DATA | LEN-1 bytes. |
+| `83` | End marker, at offset LEN+6. |
+| CHK | Sum of every preceding byte, modulo 256. |
+
+Total frame size is LEN + 8. There are no "packet types": what the old document called
+type `0x01`/`0x02`/`0x03`/`0x08`/`0x09` is simply LEN.
+
+The tracker ends a received frame on an inter-byte timeout, then checks length, `82`, `83`,
+address and checksum. A frame that fails any check is dropped silently. Receive buffer is 300 bytes.
+
+## Tracker → PC
+
+### Status broadcast, CMD `0x50` (unsolicited) [FW][APP]
+
+The tracker sends this by itself, once per second [LIVE], to DST `0x00`.
+**There is no status-request command.** It stops only while the tracker is in firmware-update mode.
+
+LEN is `0x7C` (132-byte frame) on V2.31. STcontrol also accepts LEN `0x70` (older firmware
+without the version string).
+
+| Offset | Size | Type | Field |
+|--------|------|------|-------|
+| 0–6 | 7 | | Header `81 00 01 82 00 7C 50` |
+| 7 | 1 | u8 | Mode: `0` = automatic, `1` = manual (stored in flash) |
+| 8 | 1 | u8 | Day |
+| 9 | 1 | u8 | Month |
+| 10 | 1 | u8 | Year − 2000 |
+| 11 | 1 | u8 | Second |
+| 12 | 1 | u8 | Minute |
+| 13 | 1 | u8 | Hour (the clock is UTC) |
+| 14–15 | 2 | i16 LE | Actuator (tilt) encoder pulse counter, low 16 bits |
+| 16–19 | 4 | f32 LE | Panel altitude, degrees (90 = flat, lower = more upright) |
+| 20–21 | 2 | i16 LE | Rotation encoder pulse counter, low 16 bits |
+| 22–25 | 4 | f32 LE | Panel azimuth, degrees |
+| 26–29 | 4 | f32 LE | Sun altitude, degrees |
+| 30–33 | 4 | f32 LE | Sun azimuth, degrees |
+| 34–35 | 2 | i16 LE | Wind speed, km/h |
+| 36–37 | 2 | u16 LE | Alarm word (16 bits, see below) |
+| 38–117 | 80 | 16 × 5 | Alarm log: one entry per alarm bit |
+| 118–129 | 12 | ASCII | `Version 2.31` |
+| 130 | 1 | | `83` |
+| 131 | 1 | | Checksum |
+
+The layout is the same in automatic and manual mode.
+
+Alarm log entry *i* (for alarm bit *i*) is at offset 38 + 5·*i*: year, month, day, hour, minute
+of the last time that bit became active. STcontrol prints it as `YY/MM/DD - HH:MM => message`.
+
+### Alarm word (offsets 36–37, little-endian) [FW][APP]
+
+| Bit | Mask | STcontrol message | Meaning | Cleared by `0x40` |
+|-----|------|-------------------|---------|-------------------|
+| 0 | 0x0001 | Erro no encoder do motor rotação | Rotation motor encoder error | yes |
+| 1 | 0x0002 | Erro no encoder do motor atuador | Actuator motor encoder error | yes |
+| 2 | 0x0004 | Erro no sentido de movimento de rotação | Rotation moving in the wrong direction | yes |
+| 3 | 0x0008 | Erro no sentido de movimento do atuador | Actuator moving in the wrong direction | yes |
+| 4 | 0x0010 | Fim de curso ESTE fora da posição | East limit switch out of position | yes, saved in flash |
+| 5 | 0x0020 | Fim de curso OESTE fora da posição | West limit switch out of position | yes, saved in flash |
+| 6 | 0x0040 | Fim de curso HORIZONTAL fora da posição | Horizontal limit switch out of position | yes, saved in flash |
+| 7 | 0x0080 | Fim de curso VERTICAL fora da posição | Vertical limit switch out of position | yes, saved in flash |
+| 8 | 0x0100 | Sem configuração Inicial | No initial configuration | no (live state) |
+| 9 | 0x0200 | Detetado fim de curso ESTE | East limit switch active | no (live state) |
+| 10 | 0x0400 | Detetado fim de curso OESTE | West limit switch active | no (live state) |
+| 11 | 0x0800 | Detetado fim de curso HORIZONTAL | Horizontal limit switch active (normal when stowed flat) | no (live state) |
+| 12 | 0x1000 | Detetado fim de curso VERTICAL | Vertical limit switch active | no (live state) |
+| 13 | 0x2000 | Corrente do motor rotação excedido | Rotation motor overcurrent | yes |
+| 14 | 0x4000 | Corrente do motor atuador excedido | Actuator motor overcurrent | yes |
+| 15 | 0x8000 | Limite de vento excedido | Wind limit exceeded | yes |
+
+Bits 4–7 survive a power cycle until cleared.
+
+[LIVE] Captured 2026-11-15 13:11 UTC after a power cycle: mode auto, panel altitude 90.0, azimuth 53.7,
+sun altitude 29.2, azimuth 194.2, wind 0, alarm word `0x0801`, both encoder counters 0, log entry for
+bit 0 = `1A 0B 0F 0D 0A` (2026-11-15 13:10). Bytes received right after opening the port can contain
+stray `00` bytes (one frame arrived as `Versio\x00n`); the checksum rejects those frames.
+
+[LIVE] Earlier, the last frame logged by the Pi on 2026-11-15 11:05 had bytes 34–37 = `00 00 01 08`:
+wind 0 km/h, alarm word `0x0801` = rotation encoder error + horizontal limit switch active,
+with the panel at azimuth 53.7° while the sun was at 160.5°.
+
+### Acknowledge, CMD `0x86` [FW]
+
+`81 <src> 01 82 00 01 86 83 CHK`, for example `81 00 01 82 00 01 86 83 0E`. Sent after commands
+that change settings or start a routine. It carries no data. `0x86` is the command code, not an alarm byte.
+
+### Other replies [FW]
+
+| CMD | Meaning |
+|-----|---------|
+| `0x51` | Reply to read-parameter `0x41` (see below) |
+| `0x95`, `0x96` | Negative replies from the firmware-update commands |
+
+## PC → tracker
+
+DST `FF`, SRC `00` in all examples.
+
+### Mode [FW][APP]
+
+| CMD | Frame | Effect |
+|-----|-------|--------|
+| `0x10` | `81 FF 00 82 00 01 10 83 96` | Manual mode |
+| `0x11` | `81 FF 00 82 00 01 11 83 97` | Automatic mode |
+
+Each mode change erases and rewrites the configuration block in flash. Do not send these repeatedly.
+
+### Manual movement [FW][APP]
+
+Only acted on in manual mode. STcontrol sends one data byte `01`; the firmware ignores it.
+
+| CMD | Frame | Effect |
+|-----|-------|--------|
+| `0x20` | `81 FF 00 82 00 02 20 01 83 A8` | Rotate east |
+| `0x21` | `81 FF 00 82 00 02 21 01 83 A9` | Rotate west |
+| `0x22` | `81 FF 00 82 00 02 22 01 83 AA` | Tilt up |
+| `0x23` | `81 FF 00 82 00 02 23 01 83 AB` | Tilt down |
+| `0x24` | `81 FF 00 82 00 02 24 01 83 AC` | Stop |
+
+### Go to position [FW][APP]
+
+| CMD | Frame | Effect |
+|-----|-------|--------|
+| `0x25` | `81 FF 00 82 00 01 25 83 AB` | Go to the stored maintenance position (default altitude 25°, azimuth 180°) |
+| `0x26` | `81 FF 00 82 00 01 26 83 AC` | Go to horizontal position ("POSICAO HORIZONTAL") |
+| `0x27` | `81 FF 00 82 00 01 27 83 AD` | Go to vertical position, altitude 25° ("POSICAO VERTICAL") |
+
+### Commissioning (these change calibration) [FW][APP]
+
+| CMD | LEN | Data | STcontrol name | Effect |
+|-----|-----|------|----------------|--------|
+| `0x30` | 8 | sec, min, hour, weekday, day, month, year (2 digits) | Actualizar | Set the clock (UTC). 16-byte frame. |
+| `0x31` | 1 | – | ZERAR PAINEL | Start the zero/homing routine |
+| `0x32` | 1 | – | Painel orientado ao sol | Confirm the panel is aimed at the sun (azimuth calibration) |
+| `0x33` | 9 | latitude f32 LE, longitude f32 LE | Coordenadas GPS | Store location in flash |
+| `0x34` | 3 | sunrise byte, sunset byte | CONFIRMAR (limites) | Store minimum sun altitude at sunrise and sunset, degrees (default 2, 2) |
+| `0x35` | 1 | – | CONFIRMAR POSIÇÃO DE MANUTENÇÃO | Store the current position as the maintenance position |
+| `0x36` | 1 | – | Limite vertical detetado | Store the current tilt as the vertical limit |
+| `0x40` | 1 | – | APAGAR ALARMES | Clear alarms and the alarm log |
+
+Clock example, 2026-02-14 10:30:00, Saturday: `81 FF 00 82 00 08 30 00 1E 0A 06 0E 02 1A 83 15`.
+
+### Parameters [FW][APP]
+
+| CMD | Data | Effect |
+|-----|------|--------|
+| `0x41` | `03` | Read wind settings. Reply `0x51`: `03`, hold time u16 LE, count, release threshold, trip threshold |
+| `0x41` | `0A` | Read maximum wind record. Reply `0x51`: `0A`, wind u16 LE, year, month, day, hour, minute |
+| `0x42` | `03`, hold u16 LE, count, release, trip | Write wind settings (LEN 7). Defaults: hold 10, count 1, release 30, trip 40 km/h |
+| `0x42` | `0A`, wind u16 LE, 5 date bytes | Overwrite the maximum wind record (LEN 9) |
+
+Read examples: `81 FF 00 82 00 02 41 03 83 CB`, `81 FF 00 82 00 02 41 0A 83 D2`.
+STcontrol's "Enviar" sends `81 FF 00 82 00 07 42 03 0A 00 01 <release> <trip> 83 CHK`.
+
+### Firmware update — never send [FW]
+
+| CMD | Effect |
+|-----|--------|
+| `0xF0` (13 data bytes) | Enter update mode. Status broadcasts stop. |
+| `0xF1` | Update data |
+| `0xF2` | Jump to the flash-programming routine in RAM |
+
+These are the bootloader path used by MicroLoader/TConfig, not diagnostics.
+
+## Corrections to the earlier document
+
+| Earlier claim | What the firmware and app show |
+|---------------|-------------------------------|
+| "Packet type" in byte 5 | Bytes 4–5 are the payload length |
+| Status request `81 FF 00 82 00 08 30 83 BD` | No such command. This is a truncated set-clock frame; the tracker drops it. Status is broadcast unprompted. |
+| Status response is 38 bytes | It is 132 bytes; 38 was a partial read |
+| Alarm is one byte at offset 37 | Alarm is 16 bits at offsets 36–37. Offset 36 (encoder, direction and limit-position errors) was ignored. |
+| Alarm bit `0x80` of byte 37 = encoder error | It is the wind limit. Encoder errors are bits 0–1 of byte 36. |
+| Alarm bit `0x01` of byte 37 = vertical limit | It is "no initial configuration" |
+| Byte 20 = "status flags", byte 21 unknown, bytes 14–15 "counters" | Bytes 20–21 and 14–15 are the two encoder pulse counters |
+| Bytes 34–36 reserved | Bytes 34–35 are wind speed in km/h |
+| Fields swap between auto and manual mode | The layout never changes |
+| `0x31` = alarm query, reply contains alarm byte `0x86` | `0x31` starts ZERAR PAINEL (homing). `0x86` is the generic acknowledge. |
+| `0x32`, `0x35`, `0x36` = unknown queries | Calibration commands (see above) |
+| `0x34 00 00` = zero panel | Sets both sun-altitude limits to 0 |
+| `0x09`/`0x32` = set date/time | Set clock is CMD `0x30` with LEN 8 |
+| `0xF0`–`0xF2` = diagnostics | Firmware-update entry points |
+| Alarm bytes ≥ `0xF0` are corrupt | No such rule exists; those readings came from parsing misaligned frames without checking the checksum |
+| RAM `0x12CD–0x12D3` = RTC memory | It is the receive buffer payload |

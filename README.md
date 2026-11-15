@@ -112,10 +112,11 @@ The `group_add` in docker-compose must match your system's dialout GID for seria
 | POST | `/tracker/move/{direction}/start` | Start movement |
 | POST | `/tracker/move/{direction}/stop` | Stop movement |
 | POST | `/tracker/mode/{mode}` | Set manual/automatic |
-| POST | `/tracker/home` | Go to HOME position |
-| POST | `/tracker/stow` | Go to STOW position |
-| POST | `/tracker/alarms/clear` | Clear active alarms |
-| POST | `/tracker/alarms/clear-history` | Clear alarm history |
+| POST | `/tracker/stop` | Stop movement |
+| POST | `/tracker/position/{maintenance\|horizontal\|vertical}` | Drive to a stored position (manual mode) |
+| POST | `/tracker/alarms/clear` | Clear alarms and the tracker's alarm log |
+| POST | `/tracker/wind` | Set the wind limit (km/h) |
+| POST | `/tracker/zero?confirm=true` | Start the homing routine (the tracker moves) |
 | POST | `/tracker/datetime/sync` | Sync tracker clock to UTC |
 | POST | `/tracker/gps` | Set GPS location |
 
@@ -153,12 +154,12 @@ Reverse engineered from STcontrol V4.0.4.0, COM port captures, and HCS12 firmwar
 <details>
 <summary>Key protocol notes</summary>
 
-- RS-485 half-duplex, 9600 baud, RTS toggling
+- 9600 baud 8N1; frames are `81 DST SRC 82 LEN CMD DATA 83 CHK`
+- The tracker broadcasts a 132-byte status frame once per second; nothing is polled
 - Mode byte 7: `0x00` = AUTO, `0x01` = MANUAL
-- Panel vertical: `90` = flat/stowed, `0` = vertical
-- Alarm byte at offset **37** (not 36)
-- Alarm bit 3 = tilt limit (stow), not wind speed
-- Corrupt packets (alarm >= `0xF0`) are filtered
+- Panel altitude: `90` = flat, lower = more upright
+- Alarms are a 16-bit word at offsets **36–37**; wind speed (km/h) is at 34–35
+- Frames are checksum-validated; the firmware-update commands (`0xF0`–`0xF2`) are blocked
 
 </details>
 

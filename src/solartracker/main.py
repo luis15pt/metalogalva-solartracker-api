@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from typing import List
 
@@ -16,8 +17,8 @@ from .models import (
     TrackerStatus,
     CommandResponse,
     MoveCommand,
-    SetLimitsCommand,
     SetWindThresholdCommand,
+    WindSettings,
     SetGPSLocationCommand,
     SetDateTimeCommand,
     PresetPosition,
@@ -29,7 +30,8 @@ from .models import (
 )
 from .serial_handler import serial_handler
 from .mqtt_handler import mqtt_handler
-from .protocol import SolarTrackerProtocol, ResponseOffsets
+from . import protocol
+from .protocol import Cmd
 from .inverter import router as inverter_router
 
 # Configure logging
@@ -42,7 +44,7 @@ logger = logging.getLogger(__name__)
 # File logging for persistent state change logs
 import os
 from logging.handlers import RotatingFileHandler
-_log_dir = "/app/data"
+_log_dir = settings.data_dir
 os.makedirs(_log_dir, exist_ok=True)
 _file_handler = RotatingFileHandler(
     os.path.join(_log_dir, "solartracker.log"),
@@ -56,27 +58,20 @@ logger.addHandler(_file_handler)
 # WebSocket connections for live updates
 websocket_connections: List[WebSocket] = []
 
-# Current tracker status (updated from serial responses)
+# Current tracker status (updated from the tracker's status broadcasts)
 current_status = TrackerStatus()
 
-# Buffer for accumulating serial data
-receive_buffer = bytearray()
+# Validating frame decoder for the serial byte stream
+decoder = protocol.FrameDecoder()
 
-# State change tracking for diagnostic logging
-_last_logged_state = {
-    "alarm_code": None,
-    "status_flags": None,
-    "mode_byte": None,
-    "is_auto_mode": None,
-    "vertical": None,
-    "raw_bytes_34_37": None,
-}
+# Last logged state, for change-only logging
+_last_logged: dict = {}
 
-# Previous alarm list for detecting alarm transitions
-_previous_alarms: set = set()
+# Ask the tracker for its wind settings after the next status frame (set on every (re)connect)
+_need_wind_read = True
 
 # Observed limits persistence
-LIMITS_FILE = "/app/data/observed_limits.json"
+LIMITS_FILE = os.path.join(settings.data_dir, "observed_limits.json")
 
 
 def load_observed_limits() -> ObservedLimits:
@@ -108,7 +103,6 @@ def save_observed_limits(limits: ObservedLimits):
 
 def update_observed_limits(horizontal: float | None, vertical: float | None):
     """Update observed min/max limits from a new position reading."""
-    from datetime import datetime, timezone
     limits = current_status.observed_limits
     changed = False
 
@@ -157,215 +151,140 @@ async def broadcast_status():
             pass  # Already removed by websocket_endpoint finally block
 
 
-def _log_state_changes(parsed: dict, packet: bytes):
-    """Log when alarm, mode, status flags, or position state changes."""
-    global _last_logged_state
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
-    flags = parsed.get("status_flags", {})
-    alarms = parsed.get("alarms", {})
-    position = parsed.get("position", {})
 
-    new_alarm_code = alarms.get("code")
-    new_status_flags = flags.get("raw")
-    new_mode_byte = flags.get("mode_byte")
-    new_is_auto = flags.get("is_auto_mode")
-    new_vertical = position.get("vertical")
-
-    # Raw bytes around the alarm region for analysis
-    raw_34_37 = packet[34:38].hex() if len(packet) >= 38 else None
-
-    changed = []
-    if new_alarm_code != _last_logged_state["alarm_code"]:
-        changed.append(f"alarm: 0x{_last_logged_state['alarm_code'] or 0:02x}->0x{new_alarm_code or 0:02x} ({alarms.get('list', [])})")
-    if new_status_flags != _last_logged_state["status_flags"]:
-        changed.append(f"status_flags: 0x{_last_logged_state['status_flags'] or 0:02x}->0x{new_status_flags or 0:02x}")
-    if new_is_auto != _last_logged_state["is_auto_mode"]:
-        changed.append(f"mode: {'auto' if _last_logged_state['is_auto_mode'] else 'manual'}->{'auto' if new_is_auto else 'manual'}")
-    if new_vertical != _last_logged_state["vertical"]:
-        old_v = _last_logged_state["vertical"]
-        changed.append(f"vertical: {old_v}->{new_vertical}")
-    if raw_34_37 != _last_logged_state["raw_bytes_34_37"]:
-        changed.append(f"bytes[34:38]: {_last_logged_state['raw_bytes_34_37']}->{raw_34_37}")
-
+def _log_state_changes(st: dict, raw: bytes):
+    """Log when mode, alarms or wind alarm state change."""
+    global _last_logged
+    state = {
+        "mode": "manual" if st["manual"] else "auto",
+        "alarm_word": f"0x{st['alarm_word']:04x}",
+    }
+    changed = [f"{k}: {_last_logged.get(k)}->{v}" for k, v in state.items() if _last_logged.get(k) != v]
     if changed:
-        sun = parsed.get("sun_position", {})
         logger.info(
-            f"STATE CHANGE: {', '.join(changed)} | "
-            f"pos=({position.get('horizontal')}, {new_vertical}) "
-            f"sun=({sun.get('azimuth')}, {sun.get('altitude')}) "
-            f"raw[34:38]={raw_34_37}"
+            f"STATE CHANGE: {', '.join(changed)} | alarms={[a.code for a in st['alarms']]} "
+            f"panel=(azi {st['panel_azimuth']}, alt {st['panel_altitude']}) "
+            f"sun=(azi {st['sun_azimuth']}, alt {st['sun_altitude']}) wind={st['wind_speed']} "
+            f"enc=(rot {st['rotation_encoder']}, tilt {st['tilt_encoder']}) frame={raw.hex()}"
         )
+    _last_logged = state
 
-    _last_logged_state["alarm_code"] = new_alarm_code
-    _last_logged_state["status_flags"] = new_status_flags
-    _last_logged_state["mode_byte"] = new_mode_byte
-    _last_logged_state["is_auto_mode"] = new_is_auto
-    _last_logged_state["vertical"] = new_vertical
-    _last_logged_state["raw_bytes_34_37"] = raw_34_37
+
+def _apply_status(st: dict):
+    """Copy a decoded status frame into current_status."""
+    cs = current_status
+    cs.mode = OperatingMode.MANUAL if st["manual"] else OperatingMode.AUTOMATIC
+    cs.position.horizontal = st["panel_azimuth"]
+    cs.position.vertical = st["panel_altitude"]
+    update_observed_limits(st["panel_azimuth"], st["panel_altitude"])
+    cs.sun_position.azimuth = st["sun_azimuth"]
+    cs.sun_position.altitude = st["sun_altitude"]
+    cs.wind_speed = st["wind_speed"]
+    cs.tilt_encoder = st["tilt_encoder"]
+    cs.rotation_encoder = st["rotation_encoder"]
+    cs.utc_time = st["clock"]
+    if st["version"]:
+        cs.firmware_version = st["version"]
+
+    log_times = {e["code"]: e["timestamp"] for e in st["alarm_log"]}
+    cs.alarm_word = st["alarm_word"]
+    cs.active_alarms = [
+        AlarmEntry(code=a.code, message=a.message, severity=a.severity, timestamp=log_times.get(a.code))
+        for a in st["alarms"]
+    ]
+    cs.alarms = [a.code for a in st["alarms"] if a.severity != "info"]
+    cs.limit_switches = [a.code for a in st["alarms"] if a.severity == "info"]
+    # Limit switches are normal states; keep only real alarms in the log
+    cs.alarm_history = sorted(
+        (AlarmEntry(**e) for e in st["alarm_log"] if e["severity"] != "info"),
+        key=lambda e: e.timestamp, reverse=True,
+    )
+    cs.last_frame = _utcnow()
+    cs.link_ok = True
 
 
 async def on_serial_data(data: bytes):
-    """Handle data received from serial port."""
-    global current_status, receive_buffer, _previous_alarms
-    logger.debug(f"Received serial data: {data.hex()}")
+    """Handle bytes received from the serial port."""
+    updated = False
+    for frame in decoder.feed(data):
+        if frame.cmd == Cmd.STATUS:
+            st = protocol.parse_status(frame)
+            if st is None:
+                logger.warning(f"Unparseable status frame: {frame.raw.hex()}")
+                continue
+            global _need_wind_read
+            _log_state_changes(st, frame.raw)
+            _apply_status(st)
+            updated = True
+            if _need_wind_read:
+                # Read-only query; the reply (0x51) fills in wind_settings
+                _need_wind_read = False
+                asyncio.create_task(serial_handler.read_wind_settings())
+        elif frame.cmd == Cmd.PARAM_REPLY:
+            reply = protocol.parse_param_reply(frame)
+            logger.info(f"Parameter reply: {reply}")
+            if reply and reply["param"] == "wind":
+                current_status.wind_settings = WindSettings(
+                    trip=reply["trip"], release=reply["release"],
+                    hold_minutes=reply["hold_minutes"], count=reply["count"],
+                )
+                current_status.max_wind_threshold = reply["trip"]
+                updated = True
+        elif frame.cmd == Cmd.ACK:
+            logger.info("Tracker acknowledged command")
+        elif frame.src == protocol.ADDR_TRACKER:
+            logger.info(f"Tracker frame cmd=0x{frame.cmd:02x} data={frame.data.hex()}")
 
-    # Accumulate data in buffer
-    receive_buffer.extend(data)
-
-    # Use constants from protocol module
-    RESPONSE_HEADER = SolarTrackerProtocol.RESPONSE_HEADER
-    MIN_PACKET_SIZE = ResponseOffsets.MIN_PACKET_SIZE
-    MAX_PACKET_SIZE = ResponseOffsets.MAX_PACKET_SIZE
-    HEADER_LENGTH = ResponseOffsets.HEADER_LENGTH
-
-    while len(receive_buffer) >= MIN_PACKET_SIZE:
-        # Check for response header
-        header_idx = -1
-        for i in range(len(receive_buffer) - HEADER_LENGTH + 1):
-            if receive_buffer[i:i + HEADER_LENGTH] == RESPONSE_HEADER:
-                header_idx = i
-                break
-
-        if header_idx == -1:
-            # No header found, keep last bytes in case header is split
-            receive_buffer = receive_buffer[-(HEADER_LENGTH - 1):] if len(receive_buffer) > HEADER_LENGTH - 1 else receive_buffer
-            break
-
-        # Discard data before header
-        if header_idx > 0:
-            receive_buffer = receive_buffer[header_idx:]
-
-        # Find the end of this packet (next header or end of meaningful data)
-        packet_end = MIN_PACKET_SIZE
-
-        # Look for version string "Version " which marks end of useful data
-        version_marker = b'Version '
-        version_idx = receive_buffer.find(version_marker, MIN_PACKET_SIZE)
-        if version_idx != -1 and version_idx < MAX_PACKET_SIZE:
-            # Include version string + "2.31" + footer (83) + checksum
-            packet_end = min(version_idx + 15, len(receive_buffer))
-
-        # Also check for next header
-        next_header = -1
-        for i in range(MIN_PACKET_SIZE, min(len(receive_buffer) - HEADER_LENGTH + 1, MAX_PACKET_SIZE)):
-            if receive_buffer[i:i + HEADER_LENGTH] == RESPONSE_HEADER:
-                next_header = i
-                break
-
-        if next_header != -1:
-            packet_end = next_header
-        elif len(receive_buffer) < packet_end:
-            # Wait for more data
-            break
-
-        # Extract and parse packet
-        packet = bytes(receive_buffer[:packet_end])
-        receive_buffer = receive_buffer[packet_end:]
-
-        parsed = SolarTrackerProtocol.parse_response(packet)
-        if parsed:
-            logger.debug(f"Parsed response: {parsed}")
-
-            # Diagnostic logging: log on state changes only
-            _log_state_changes(parsed, packet)
-
-            # Update current_status with parsed data
-            if "position" in parsed:
-                pos = parsed["position"]
-                current_status.position.horizontal = pos.get("horizontal")
-                current_status.position.vertical = pos.get("vertical")
-                update_observed_limits(pos.get("horizontal"), pos.get("vertical"))
-
-            if "sun_position" in parsed:
-                sun = parsed["sun_position"]
-                current_status.sun_position.altitude = sun.get("altitude")
-                current_status.sun_position.azimuth = sun.get("azimuth")
-
-            if "date" in parsed:
-                d = parsed["date"]
-                try:
-                    from datetime import datetime
-                    current_status.utc_time = datetime(
-                        d["year"], d["month"], d["day"],
-                        d["hour"], d.get("minute", 0), d.get("second", 0)
-                    )
-                except:
-                    pass
-
-            if "version" in parsed:
-                current_status.firmware_version = parsed["version"]
-
-            # Update mode based on status flags
-            if "status_flags" in parsed:
-                flags = parsed["status_flags"]
-                new_mode = OperatingMode.AUTOMATIC if flags.get("is_auto_mode") else OperatingMode.MANUAL
-                if new_mode != current_status.mode:
-                    logger.warning(f"Mode transition: {current_status.mode.value} → {new_mode.value} (mode_byte={flags.get('mode_byte')})")
-                current_status.mode = new_mode
-
-            if "alarms" in parsed and "list" in parsed["alarms"]:
-                new_alarms = parsed["alarms"]["list"]
-                # Detect new alarms and add to history
-                from datetime import datetime, timezone
-                for alarm in new_alarms:
-                    if alarm not in _previous_alarms:
-                        # Alarm transitioned from absent to present
-                        alarm_names = {
-                            'vertical_limit': 'Vertical Limit',
-                            'unknown_alarm_1': 'Unknown Alarm (bit 1)',
-                            'west_limit': 'West Limit',
-                            'tilt_limit_flat': 'Tilt Limit - Panel Flat (stow position)',
-                            'actuator_current': 'Actuator Current',
-                            'rotation_current': 'Rotation Current',
-                            'unknown_alarm_6': 'Unknown Alarm (bit 6)',
-                            'encoder_error': 'Encoder Error',
-                        }
-                        entry = AlarmEntry(
-                            alarm_type=alarm,
-                            timestamp=current_status.utc_time or datetime.now(timezone.utc),
-                            message=alarm_names.get(alarm, alarm)
-                        )
-                        current_status.alarm_history.insert(0, entry)  # Newest first
-                        # Keep only last 20 alarms in history
-                        current_status.alarm_history = current_status.alarm_history[:20]
-                        logger.warning(f"Alarm triggered: {alarm}")
-                _previous_alarms = set(new_alarms)
-                current_status.alarms = new_alarms
-
-    # Broadcast to WebSocket clients
-    await broadcast_status()
-
-    # Publish to MQTT
-    await mqtt_handler.publish_status(current_status)
+    current_status.frames_ok = decoder.frames_ok
+    current_status.frames_bad = decoder.frames_bad
+    if updated:
+        await broadcast_status()
+        await mqtt_handler.publish_status(current_status)
 
 
-async def status_poll_loop():
-    """Periodically poll status from tracker."""
-    failure_count = 0
+async def housekeeping_loop():
+    """Track link health and reconnect the serial port when it drops."""
+    global _need_wind_read
     while True:
         try:
-            if serial_handler.is_connected:
-                await serial_handler.request_status()
+            if not serial_handler.is_connected:
+                decoder.reset()
+                if await serial_handler.connect():
+                    _need_wind_read = True
+                    logger.info(f"Serial reconnected to {settings.serial_port}")
 
-            # Update connection status
-            current_status.connection = serial_handler.get_status()
-
-            # Broadcast updates
+            cs = current_status
+            cs.connection = serial_handler.get_status()
+            was_ok = cs.link_ok
+            cs.link_ok = (
+                serial_handler.is_connected and cs.last_frame is not None
+                and (_utcnow() - cs.last_frame).total_seconds() < settings.link_timeout
+            )
+            if was_ok and not cs.link_ok:
+                logger.warning("No status frames from tracker: link stale")
             await broadcast_status()
-            await mqtt_handler.publish_status(current_status)
-
-            # Reset failure counter on success
-            failure_count = 0
-
+            await mqtt_handler.publish_status(cs)
         except Exception as e:
-            failure_count += 1
-            logger.error(f"Status poll error (failure {failure_count}): {e}")
+            logger.error(f"Housekeeping error: {e}")
+        await asyncio.sleep(settings.reconnect_interval if not serial_handler.is_connected else 5)
 
-        # Back off to 30s after 3 consecutive failures
-        if failure_count >= 3:
-            await asyncio.sleep(30)
-        else:
-            await asyncio.sleep(settings.status_poll_interval)
+
+async def _set_wind(trip: int, release: int | None = None) -> bool:
+    """Write the wind trip threshold, keeping the other stored settings."""
+    ws = current_status.wind_settings
+    if release is None:
+        release = ws.release if ws and ws.release <= trip else round(trip * 0.75)
+    release = min(release, trip)
+    ok = await serial_handler.write_wind_settings(
+        trip, release, ws.hold_minutes if ws else 10, ws.count if ws else 1
+    )
+    if ok:
+        await asyncio.sleep(1.0)
+        await serial_handler.read_wind_settings()  # confirm what the tracker stored
+    return ok
 
 
 @asynccontextmanager
@@ -380,24 +299,16 @@ async def lifespan(app: FastAPI):
     serial_handler.set_data_callback(on_serial_data)
 
     # Set up MQTT callbacks
-    async def sync_datetime_callback():
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc)
-        return await serial_handler.set_datetime(
-            now.year, now.month, now.day,
-            now.hour, now.minute, now.second
-        )
 
     mqtt_handler.set_callbacks(
         on_move=lambda d, s: serial_handler.move(d, s),
         on_mode=lambda auto: serial_handler.set_mode(auto),
         on_clear_alarms=lambda: serial_handler.clear_alarms(),
-        on_set_wind=lambda v: serial_handler.set_max_wind(v),
-        on_go_home=lambda: serial_handler.go_home(),
-        on_go_stow=lambda: serial_handler.go_stow(),
+        on_set_wind=lambda v: _set_wind(v),
+        on_go_home=lambda: serial_handler.go_to_position(PresetPosition.MAINTENANCE),
+        on_go_stow=lambda: serial_handler.go_to_position(PresetPosition.HORIZONTAL),
         on_set_gps=lambda lat, lon: serial_handler.set_gps_location(lat, lon),
-        on_sync_datetime=sync_datetime_callback,
-        on_zero_panel=lambda: serial_handler.zero_panel(),
+        on_sync_datetime=lambda: serial_handler.set_datetime(_utcnow()),
     )
 
     # Connect to MQTT
@@ -417,8 +328,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Serial auto-connect failed: {e}")
 
-    # Start status polling task
-    poll_task = asyncio.create_task(status_poll_loop())
+    # Link watchdog / reconnect task
+    poll_task = asyncio.create_task(housekeeping_loop())
 
     yield
 
@@ -438,7 +349,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Solar Tracker API",
     description="REST API for controlling solar tracking systems",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -460,6 +371,7 @@ async def health_check():
     return {
         "status": "healthy",
         "serial_connected": serial_handler.is_connected,
+        "tracker_link_ok": current_status.link_ok,
         "mqtt_connected": mqtt_handler.is_connected,
     }
 
@@ -469,10 +381,10 @@ async def get_info():
     """Get API information."""
     return {
         "name": "Solar Tracker API",
-        "version": "0.1.0",
-        "protocol_defined": SolarTrackerProtocol.is_protocol_defined(),
-        "defined_commands": [c.name for c in SolarTrackerProtocol.get_defined_commands()],
-        "undefined_commands": [c.name for c in SolarTrackerProtocol.get_undefined_commands()],
+        "version": "0.2.0",
+        "commands": [c.name for c in Cmd],
+        "alarms": [{"bit": a.bit, "code": a.code, "message": a.message, "severity": a.severity}
+                   for a in protocol.ALARMS],
     }
 
 
@@ -520,6 +432,11 @@ async def send_raw(data: str):
 
     try:
         raw_bytes = bytes.fromhex(data)
+        frame = protocol.parse_frame(raw_bytes)
+        if frame is None:
+            raise HTTPException(status_code=400, detail="Not a valid frame (length or checksum)")
+        if frame.cmd in protocol.FORBIDDEN_COMMANDS:
+            raise HTTPException(status_code=400, detail="Firmware-update commands are blocked")
         success = await serial_handler.send(raw_bytes)
         return CommandResponse(
             success=success,
@@ -611,8 +528,7 @@ async def set_mode(mode: OperatingMode):
     logger.info(f"Mode endpoint called: {mode.value} (automatic={automatic})")
     success = await serial_handler.set_mode(automatic)
 
-    # Don't set current_status.mode here — let tracker confirm via next status response
-    # (parsed in on_serial_data → status_flags → is_auto_mode)
+    # The tracker confirms the new mode in its next status broadcast
 
     return CommandResponse(
         success=success,
@@ -628,37 +544,32 @@ async def clear_alarms():
 
     success = await serial_handler.clear_alarms()
 
-    if success:
-        current_status.alarms = []
-
     return CommandResponse(
         success=success,
         message="Alarms cleared" if success else "Command failed",
     )
 
 
-@app.post("/tracker/alarms/clear-history", response_model=CommandResponse)
-async def clear_alarm_history():
-    """Clear alarm history."""
-    current_status.alarm_history = []
-    return CommandResponse(success=True, message="Alarm history cleared")
-
-
 @app.post("/tracker/wind", response_model=CommandResponse)
 async def set_wind_threshold(command: SetWindThresholdCommand):
-    """Set maximum wind threshold."""
+    """Set the wind trip threshold (km/h). Writes the tracker's flash."""
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
-    success = await serial_handler.set_max_wind(command.max_wind)
-
-    if success:
-        current_status.max_wind_threshold = command.max_wind
-
+    success = await _set_wind(command.max_wind, command.release)
     return CommandResponse(
         success=success,
-        message=f"Max wind set to {command.max_wind}" if success else "Command failed",
+        message=f"Wind threshold {command.max_wind} km/h sent" if success else "Command failed",
     )
+
+
+@app.post("/tracker/wind/read", response_model=CommandResponse)
+async def read_wind_settings():
+    """Ask the tracker for its stored wind settings (appear in status.wind_settings)."""
+    if not serial_handler.is_connected:
+        raise HTTPException(status_code=400, detail="Not connected")
+    success = await serial_handler.read_wind_settings()
+    return CommandResponse(success=success, message="Requested" if success else "Command failed")
 
 
 @app.post("/tracker/gps", response_model=CommandResponse)
@@ -677,18 +588,18 @@ async def set_gps_location(command: SetGPSLocationCommand):
 
 @app.post("/tracker/datetime", response_model=CommandResponse)
 async def set_datetime(command: SetDateTimeCommand):
-    """Set tracker internal clock."""
+    """Set tracker internal clock (the tracker expects UTC)."""
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
-
-    success = await serial_handler.set_datetime(
-        command.year, command.month, command.day,
-        command.hour, command.minute, command.second
-    )
-
+    try:
+        when = datetime(command.year, command.month, command.day,
+                        command.hour, command.minute, command.second)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    success = await serial_handler.set_datetime(when)
     return CommandResponse(
         success=success,
-        message=f"DateTime set to {command.year}-{command.month:02d}-{command.day:02d} {command.hour:02d}:{command.minute:02d}:{command.second:02d}" if success else "Command failed",
+        message=f"DateTime set to {when:%Y-%m-%d %H:%M:%S}" if success else "Command failed",
     )
 
 
@@ -697,78 +608,55 @@ async def sync_datetime():
     """Sync tracker clock with server UTC time."""
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
-
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc)
-
-    success = await serial_handler.set_datetime(
-        now.year, now.month, now.day,
-        now.hour, now.minute, now.second
-    )
-
+    now = _utcnow()
+    success = await serial_handler.set_datetime(now)
     return CommandResponse(
         success=success,
-        message=f"Synced to {now.strftime('%Y-%m-%d %H:%M:%S UTC')}" if success else "Command failed",
+        message=f"Synced to {now:%Y-%m-%d %H:%M:%S UTC}" if success else "Command failed",
     )
 
 
 @app.post("/tracker/position/{position}", response_model=CommandResponse)
 async def go_to_preset_position(position: PresetPosition):
     """
-    Go to a preset position.
+    Drive to a stored position (manual mode only).
 
-    - position 1: Unknown preset
-    - position 2 (HOME): Home position
-    - position 3 (STOW): Stow/safe position
+    - maintenance: the stored maintenance position
+    - horizontal: panel flat
+    - vertical: panel at its most upright (altitude 25 degrees)
     """
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
-
-    success = await serial_handler.go_to_position(position.value)
-
-    position_names = {1: "Position 1", 2: "HOME", 3: "STOW"}
+    success = await serial_handler.go_to_position(position)
     return CommandResponse(
         success=success,
-        message=f"Going to {position_names[position.value]}" if success else "Command failed",
+        message=f"Going to {position.value} position" if success else "Command failed",
     )
 
 
 @app.post("/tracker/home", response_model=CommandResponse)
 async def go_home():
-    """Move panel to HOME position."""
-    if not serial_handler.is_connected:
-        raise HTTPException(status_code=400, detail="Not connected")
-
-    success = await serial_handler.go_home()
-    return CommandResponse(
-        success=success,
-        message="Going to HOME position" if success else "Command failed",
-    )
+    """Drive to the maintenance position (kept for compatibility)."""
+    return await go_to_preset_position(PresetPosition.MAINTENANCE)
 
 
 @app.post("/tracker/stow", response_model=CommandResponse)
 async def go_stow():
-    """Move panel to STOW (safe) position."""
-    if not serial_handler.is_connected:
-        raise HTTPException(status_code=400, detail="Not connected")
-
-    success = await serial_handler.go_stow()
-    return CommandResponse(
-        success=success,
-        message="Going to STOW position" if success else "Command failed",
-    )
+    """Lay the panel flat (kept for compatibility)."""
+    return await go_to_preset_position(PresetPosition.HORIZONTAL)
 
 
 @app.post("/tracker/zero", response_model=CommandResponse)
-async def zero_panel():
-    """Reset panel position encoders to zero."""
+async def zero_panel(confirm: bool = False):
+    """ZERAR PAINEL: start the tracker's homing routine. The tracker will move."""
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Homing moves the tracker; pass confirm=true")
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
-
     success = await serial_handler.zero_panel()
     return CommandResponse(
         success=success,
-        message="Panel position zeroed" if success else "Command failed",
+        message="Homing routine started" if success else "Command failed",
     )
 
 
@@ -787,19 +675,6 @@ async def reset_observed_limits():
 async def get_observed_limits():
     """Get current observed position limits."""
     return current_status.observed_limits
-
-
-@app.post("/tracker/alarms/query", response_model=CommandResponse)
-async def query_alarms():
-    """Query detailed alarm status from tracker."""
-    if not serial_handler.is_connected:
-        raise HTTPException(status_code=400, detail="Not connected")
-
-    success = await serial_handler.query_alarms()
-    return CommandResponse(
-        success=success,
-        message="Alarm query sent" if success else "Command failed",
-    )
 
 
 # =============================================================================

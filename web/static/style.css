@@ -581,3 +581,42 @@ footer {
 @media (min-width: 900px) {
     .container { max-width: 700px; }
 }
+
+/* --- v0.2 additions --- */
+.alarm-banner.warn-alarm, .alarm-banner.stale-banner {
+    background: rgba(255,193,7,0.1);
+    border-color: var(--warning);
+}
+.alarm-banner.warn-alarm .alarm-icon, .alarm-banner.stale-banner .alarm-icon { color: var(--warning); }
+.alarm-list li small { color: var(--text-dim); margin-left: 6px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+.chip {
+    font-size: 0.75rem;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.04);
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+.chip.ok { color: var(--success); border-color: rgba(0,200,83,0.4); }
+.chip.warn { color: var(--warning); border-color: rgba(255,193,7,0.5); }
+.chip.bad { color: var(--danger); border-color: rgba(255,82,82,0.5); }
+#chip-switches { display: contents; }
+
+.dpad-btn.center.stop { color: var(--danger); }
+.presets { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
+.hint { font-size: 0.75rem; color: var(--text-dim); margin-top: 8px; text-align: center; }
+.card-body .hint { text-align: left; }
+.controls-col.locked .dpad, .controls-col.locked .presets { opacity: 0.35; }
+.controls-col:not(.locked) #manual-hint { display: none; }
+
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 0.85rem; }
+.kv dt { color: var(--text-dim); }
+.kv dd { text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+.alarm-history li .sev { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--danger); }
+.alarm-history li .sev.info { background: var(--info); }
+.alarm-history li .sev.warning { background: var(--warning); }
+.stale .gauge-row, .stale .scene-container, .stale .chips { opacity: 0.5; }

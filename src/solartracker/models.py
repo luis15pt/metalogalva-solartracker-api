@@ -20,23 +20,20 @@ class Direction(str, Enum):
     RIGHT = "right"
 
 
-class AlarmType(str, Enum):
-    """Types of alarms (matching STcontrol terminology)."""
-    VERTICAL_LIMIT = "vertical_limit"      # Bit 0 - fim de curso vertical
-    TILT_LIMIT_FLAT = "tilt_limit_flat"    # Bit 1 - fim de curso horizontal (panel flat/stowed)
-    WEST_LIMIT = "west_limit"              # Bit 2
-    WIND_SPEED = "wind_speed"              # Bit 3 - limite de vento excedido
-    ACTUATOR_CURRENT = "actuator_current"  # Bit 4
-    ROTATION_CURRENT = "rotation_current"  # Bit 5
-    UNKNOWN_6 = "unknown_alarm_6"          # Bit 6 - unknown
-    ENCODER_ERROR = "encoder_error"        # Bit 7
-
-
 class AlarmEntry(BaseModel):
-    """Alarm history entry with timestamp."""
-    alarm_type: str = Field(..., description="Alarm type code")
-    timestamp: datetime = Field(..., description="When the alarm was triggered")
-    message: str = Field("", description="Human-readable alarm message")
+    """One alarm: either currently active, or an entry of the tracker's own alarm log."""
+    code: str = Field(..., description="Alarm code, e.g. rotation_encoder")
+    message: str = Field("", description="Human-readable message")
+    severity: str = Field("fault", description="fault, warning or info")
+    timestamp: Optional[datetime] = Field(None, description="Last activation (tracker clock, UTC)")
+
+
+class WindSettings(BaseModel):
+    """Wind protection settings stored in the tracker."""
+    trip: int = Field(..., description="Alarm trips above this speed, km/h")
+    release: int = Field(..., description="Wind must stay below this to release, km/h")
+    hold_minutes: int = Field(..., description="Minutes below release before the alarm clears")
+    count: int = Field(1, description="Consecutive samples above trip needed")
 
 
 class ConnectionStatus(BaseModel):
@@ -60,14 +57,6 @@ class SunPosition(BaseModel):
     altitude: Optional[float] = Field(None, description="Sun altitude angle in degrees")
 
 
-class TrackerLimits(BaseModel):
-    """Configured limits for the solar tracker."""
-    east_limit: Optional[int] = Field(None, description="East limit angle")
-    west_limit: Optional[int] = Field(None, description="West limit angle")
-    min_altitude_sunrise: Optional[float] = Field(None, description="Min altitude at sunrise")
-    min_altitude_sunset: Optional[float] = Field(None, description="Min altitude at sunset")
-
-
 class ObservedLimits(BaseModel):
     """Observed physical limits of the tracker, tracked over time."""
     horizontal_min: Optional[float] = Field(None, description="Minimum observed horizontal angle")
@@ -83,15 +72,24 @@ class TrackerStatus(BaseModel):
     mode: OperatingMode = OperatingMode.MANUAL
     position: TrackerPosition = TrackerPosition()
     sun_position: SunPosition = SunPosition()
-    limits: TrackerLimits = TrackerLimits()
-    wind_speed: Optional[float] = Field(None, description="Current wind speed")
-    max_wind_threshold: Optional[int] = Field(None, description="Max wind threshold")
-    alarms: List[str] = Field(default_factory=list, description="Current active alarms")
-    alarm_history: List[AlarmEntry] = Field(default_factory=list, description="Alarm history log")
+    wind_speed: Optional[float] = Field(None, description="Wind speed from the tracker, km/h")
+    wind_settings: Optional[WindSettings] = None
+    max_wind_threshold: Optional[int] = Field(None, description="Wind trip threshold, km/h")
+    alarm_word: int = Field(0, description="Raw 16-bit alarm word")
+    alarms: List[str] = Field(default_factory=list, description="Active fault/warning codes")
+    limit_switches: List[str] = Field(default_factory=list, description="Active limit switches (informational)")
+    active_alarms: List[AlarmEntry] = Field(default_factory=list, description="All active bits with details")
+    alarm_history: List[AlarmEntry] = Field(default_factory=list, description="Tracker alarm log, newest first")
+    tilt_encoder: Optional[int] = Field(None, description="Actuator encoder pulse counter (low 16 bits)")
+    rotation_encoder: Optional[int] = Field(None, description="Rotation encoder pulse counter (low 16 bits)")
     observed_limits: ObservedLimits = ObservedLimits()
     connection: ConnectionStatus = ConnectionStatus()
-    utc_time: Optional[datetime] = None
+    utc_time: Optional[datetime] = Field(None, description="Tracker clock (UTC)")
     firmware_version: Optional[str] = Field(None, description="Firmware version string")
+    last_frame: Optional[datetime] = Field(None, description="When the last valid status frame arrived (UTC)")
+    link_ok: bool = Field(False, description="True while status frames are arriving")
+    frames_ok: int = 0
+    frames_bad: int = 0
 
 
 class MoveCommand(BaseModel):
@@ -100,15 +98,10 @@ class MoveCommand(BaseModel):
     duration_ms: Optional[int] = Field(None, description="Duration in milliseconds (None = while held)")
 
 
-class SetLimitsCommand(BaseModel):
-    """Command to set tracker limits."""
-    east_limit: Optional[int] = Field(None, ge=0, le=99)
-    west_limit: Optional[int] = Field(None, ge=0, le=99)
-
-
 class SetWindThresholdCommand(BaseModel):
-    """Command to set max wind threshold."""
-    max_wind: int = Field(..., ge=0, le=99, description="Max wind speed threshold")
+    """Command to set the wind trip threshold."""
+    max_wind: int = Field(..., ge=10, le=99, description="Wind trip threshold, km/h")
+    release: Optional[int] = Field(None, ge=5, le=99, description="Release threshold, km/h (default 75% of trip)")
 
 
 class CommandResponse(BaseModel):
@@ -134,8 +127,8 @@ class SetDateTimeCommand(BaseModel):
     second: int = Field(..., ge=0, le=59, description="Second (0-59)")
 
 
-class PresetPosition(int, Enum):
-    """Preset position numbers."""
-    POSITION_1 = 1
-    HOME = 2
-    STOW = 3
+class PresetPosition(str, Enum):
+    """Stored positions the tracker can drive to (manual mode)."""
+    MAINTENANCE = "maintenance"
+    HORIZONTAL = "horizontal"
+    VERTICAL = "vertical"

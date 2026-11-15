@@ -9,7 +9,7 @@ from datetime import datetime
 import paho.mqtt.client as mqtt
 
 from .config import settings
-from .models import TrackerStatus, OperatingMode, Direction, AlarmType
+from .models import TrackerStatus, OperatingMode, Direction
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,6 @@ class MQTTHandler:
                 (self._topic("command/go_stow"), 1),
                 (self._topic("command/set_gps"), 1),
                 (self._topic("command/sync_datetime"), 1),
-                (self._topic("command/zero_panel"), 1),
             ]
             client.subscribe(command_topics)
 
@@ -434,7 +433,7 @@ class MQTTHandler:
             "name": "Max Wind Threshold",
             "state_topic": self._topic("state/max_wind"),
             "command_topic": self._topic("command/set_wind"),
-            "min": 0,
+            "min": 10,
             "max": 99,
             "step": 1,
             "unit_of_measurement": "km/h",
@@ -483,7 +482,7 @@ class MQTTHandler:
 
         # Button: Go Home
         self._publish_discovery_config("button", "go_home", {
-            "name": "Go Home",
+            "name": "Go to Maintenance Position",
             "command_topic": self._topic("command/go_home"),
             "payload_press": "home",
             "device": device_info,
@@ -494,7 +493,7 @@ class MQTTHandler:
 
         # Button: Go Stow
         self._publish_discovery_config("button", "go_stow", {
-            "name": "Stow (Safe Position)",
+            "name": "Lay Panel Flat",
             "command_topic": self._topic("command/go_stow"),
             "payload_press": "stow",
             "device": device_info,
@@ -514,16 +513,8 @@ class MQTTHandler:
             "icon": "mdi:clock-sync",
         })
 
-        # Button: Zero Panel
-        self._publish_discovery_config("button", "zero_panel", {
-            "name": "Zero Panel Position",
-            "command_topic": self._topic("command/zero_panel"),
-            "payload_press": "zero",
-            "device": device_info,
-            "availability": availability,
-            "unique_id": "solartracker_zero_panel",
-            "icon": "mdi:numeric-0-box",
-        })
+        # Homing is a commissioning action; remove the old dashboard button
+        self._client.publish(self._discovery_topic("button", "zero_panel"), payload="", qos=1, retain=True)
 
         logger.info("Published Home Assistant discovery config")
 

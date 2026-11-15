@@ -10,8 +10,9 @@ import serial
 from serial.tools import list_ports
 
 from .config import settings
-from .protocol import SolarTrackerProtocol, Direction as ProtoDirection
-from .models import ConnectionStatus, TrackerStatus, Direction
+from . import protocol
+from .protocol import Cmd
+from .models import ConnectionStatus, Direction, PresetPosition
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ class SerialHandler:
                     stopbits=settings.serial_stopbits,
                     timeout=settings.serial_timeout,
                 )
+                self._set_rts(False)  # receive state
                 self._connected = True
                 logger.info(f"Connected to {port} at {baudrate} baud")
 
@@ -95,8 +97,9 @@ class SerialHandler:
 
                 return True
 
-            except serial.SerialException as e:
+            except (OSError, serial.SerialException) as e:
                 logger.error(f"Failed to connect to {port}: {e}")
+                self._serial = None
                 self._connected = False
                 return False
 
@@ -107,7 +110,7 @@ class SerialHandler:
 
     async def _disconnect_internal(self) -> bool:
         """Internal disconnect (must hold lock)."""
-        if self._read_task:
+        if self._read_task and self._read_task is not asyncio.current_task():
             self._read_task.cancel()
             try:
                 await self._read_task
@@ -122,6 +125,13 @@ class SerialHandler:
         self._serial = None
         self._connected = False
         return True
+
+    def _set_rts(self, level: bool):
+        """Drive RTS for half-duplex adapters; ports without modem lines are fine."""
+        try:
+            self._serial.rts = level
+        except OSError:
+            pass
 
     def set_data_callback(self, callback: Callable[[bytes], Awaitable[None]]):
         """Set callback for received data."""
@@ -148,7 +158,7 @@ class SerialHandler:
         try:
             async with self._lock:
                 # RS-485: Set RTS high for transmit mode
-                self._serial.rts = True
+                self._set_rts(True)
                 await asyncio.sleep(0.002)  # Small delay for line to settle
 
                 self._serial.write(data)
@@ -160,176 +170,93 @@ class SerialHandler:
                 await asyncio.sleep(tx_time)
 
                 # RS-485: Set RTS low for receive mode
-                self._serial.rts = False
+                self._set_rts(False)
 
                 self._last_tx = datetime.now()
                 logger.info(f"TX [{len(data)} bytes]: {data.hex()}")
                 return True
-        except serial.SerialException as e:
+        except (OSError, serial.SerialException) as e:
             logger.error(f"Send failed: {e}")
             return False
 
     async def move(self, direction: Direction, start: bool = True) -> bool:
-        """
-        Start or stop movement in a direction.
-
-        Args:
-            direction: Direction to move
-            start: True to start moving, False to stop
-
-        Returns:
-            True if command sent successfully
-        """
-        direction_map = {
-            Direction.UP: ProtoDirection.UP,
-            Direction.DOWN: ProtoDirection.DOWN,
-            Direction.LEFT: ProtoDirection.LEFT,
-            Direction.RIGHT: ProtoDirection.RIGHT,
-        }
-        proto_dir = direction_map.get(direction, ProtoDirection.STOP)
-        packet = SolarTrackerProtocol.build_movement_command(proto_dir, start)
-        return await self.send(packet)
+        """Start moving in a direction, or stop. Only acted on in manual mode."""
+        cmd = {
+            Direction.UP: Cmd.MOVE_UP,
+            Direction.DOWN: Cmd.MOVE_DOWN,
+            Direction.LEFT: Cmd.MOVE_WEST,
+            Direction.RIGHT: Cmd.MOVE_EAST,
+        }[direction] if start else Cmd.MOVE_STOP
+        return await self.send(protocol.move(cmd))
 
     async def stop(self) -> bool:
         """Stop all movement."""
-        packet = SolarTrackerProtocol.build_stop_command()
-        return await self.send(packet)
+        return await self.send(protocol.stop())
 
     async def set_mode(self, automatic: bool) -> bool:
-        """Set operating mode."""
-        logger.info(f"set_mode called: automatic={automatic} → sending {'0x10 (AUTO)' if automatic else '0x11 (MANUAL)'}")
-        packet = SolarTrackerProtocol.set_auto_mode() if automatic else SolarTrackerProtocol.set_manual_mode()
-        if packet is None:
-            logger.warning("Set mode command not yet implemented in protocol")
-            return False
-        return await self.send(packet)
+        """Set operating mode (rewrites the tracker's flash)."""
+        return await self.send(protocol.set_mode(automatic))
 
     async def clear_alarms(self) -> bool:
-        """Clear all alarms."""
-        packet = SolarTrackerProtocol.build_clear_alarms()
-        return await self.send(packet)
+        """Clear alarms and the tracker's alarm log."""
+        return await self.send(protocol.clear_alarms())
 
-    async def request_status(self) -> bool:
-        """Request status update from tracker."""
-        packet = SolarTrackerProtocol.build_status_request()
-        return await self.send(packet)
+    async def read_wind_settings(self) -> bool:
+        return await self.send(protocol.read_wind_settings())
 
-    async def set_max_wind(self, value: int) -> bool:
-        """Set maximum wind threshold."""
-        # TODO: Not yet reverse-engineered
-        packet = SolarTrackerProtocol.set_max_wind(value)
-        if packet is None:
-            logger.warning("Set max wind command not yet implemented in protocol")
-            return False
-        return await self.send(packet)
+    async def write_wind_settings(self, trip: int, release: int, hold_minutes: int, count: int) -> bool:
+        return await self.send(protocol.write_wind_settings(trip, release, hold_minutes, count))
 
     async def set_gps_location(self, latitude: float, longitude: float) -> bool:
-        """
-        Set tracker GPS location for sun position calculations.
+        return await self.send(protocol.set_location(latitude, longitude))
 
-        Args:
-            latitude: Latitude in decimal degrees (e.g., 40.5440)
-            longitude: Longitude in decimal degrees (e.g., -8.6988)
+    async def set_datetime(self, when: datetime) -> bool:
+        """Set the tracker clock (UTC)."""
+        return await self.send(protocol.set_clock(when))
 
-        Returns:
-            True if command sent successfully
-        """
-        packet = SolarTrackerProtocol.set_gps_location(latitude, longitude)
-        return await self.send(packet)
-
-    async def set_datetime(self, year: int, month: int, day: int,
-                           hour: int, minute: int, second: int) -> bool:
-        """
-        Set tracker internal clock.
-
-        Args:
-            year: Full year (2000-2255)
-            month: Month (1-12)
-            day: Day (1-31)
-            hour: Hour (0-23)
-            minute: Minute (0-59)
-            second: Second (0-59)
-
-        Returns:
-            True if command sent successfully
-        """
-        try:
-            packet = SolarTrackerProtocol.set_datetime(year, month, day, hour, minute, second)
-            return await self.send(packet)
-        except ValueError as e:
-            logger.error(f"Invalid datetime: {e}")
-            return False
-
-    async def go_to_position(self, position: int) -> bool:
-        """
-        Go to a preset position.
-
-        Args:
-            position: Preset number (1, 2, or 3)
-                - 1: Unknown preset
-                - 2: Possibly HOME position
-                - 3: Possibly STOW position
-
-        Returns:
-            True if command sent successfully
-        """
-        try:
-            packet = SolarTrackerProtocol.go_to_position(position)
-            return await self.send(packet)
-        except ValueError as e:
-            logger.error(f"Invalid position: {e}")
-            return False
-
-    async def go_home(self) -> bool:
-        """Move panel to HOME position (preset 2)."""
-        return await self.go_to_position(2)
-
-    async def go_stow(self) -> bool:
-        """Move panel to STOW position (preset 3)."""
-        return await self.go_to_position(3)
+    async def go_to_position(self, position: PresetPosition) -> bool:
+        """Drive to a stored position. Only acted on in manual mode."""
+        cmd = {
+            PresetPosition.MAINTENANCE: Cmd.GOTO_MAINTENANCE,
+            PresetPosition.HORIZONTAL: Cmd.GOTO_HORIZONTAL,
+            PresetPosition.VERTICAL: Cmd.GOTO_VERTICAL,
+        }[position]
+        return await self.send(protocol.goto(cmd))
 
     async def zero_panel(self) -> bool:
-        """Reset panel position encoders to zero."""
-        packet = SolarTrackerProtocol.zero_panel()
-        return await self.send(packet)
-
-    async def query_alarms(self) -> bool:
-        """Query detailed alarm status."""
-        packet = SolarTrackerProtocol.query_alarms()
-        return await self.send(packet)
+        """ZERAR PAINEL: start the homing routine. The tracker will move."""
+        return await self.send(protocol.zero_panel())
 
     async def _read_loop(self):
-        """Background task to read serial data."""
+        """Background task: read bytes and hand them to the callback."""
         logger.info("Starting serial read loop")
-        buffer = bytearray()
-
-        while self.is_connected:
+        ser = self._serial
+        while self._connected and ser is not None and ser.is_open:
             try:
-                if self._serial.in_waiting > 0:
-                    data = self._serial.read(self._serial.in_waiting)
+                waiting = ser.in_waiting
+                if waiting:
+                    data = ser.read(waiting)
                     self._last_rx = datetime.now()
-                    buffer.extend(data)
-                    logger.debug(f"RX: {data.hex()}")
-
-                    # Process complete messages from buffer
-                    # TODO: Implement proper message framing based on protocol
-                    if buffer:
-                        if self._on_data_received:
-                            await self._on_data_received(bytes(buffer))
-                        buffer.clear()
-
-                await asyncio.sleep(0.01)  # Small delay to prevent busy loop
-
-            except serial.SerialException as e:
-                logger.error(f"Serial read error: {e}")
-                break
+                    if self._on_data_received:
+                        try:
+                            await self._on_data_received(data)
+                        except Exception:
+                            logger.exception("Error in serial data callback")
+                await asyncio.sleep(0.02)
             except asyncio.CancelledError:
                 logger.info("Serial read loop cancelled")
+                raise
+            except (OSError, serial.SerialException) as e:
+                # Device unplugged or re-enumerated: drop the port so the
+                # housekeeping loop can reconnect instead of spinning here.
+                logger.error(f"Serial port lost: {e}")
+                self._connected = False
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+                self._serial = None
                 break
-            except Exception as e:
-                logger.error(f"Error in read loop callback: {e}")
-                # Don't break — keep reading serial data
-
         logger.info("Serial read loop ended")
 
 

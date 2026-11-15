@@ -29,11 +29,15 @@ class Settings(BaseSettings):
     api_host: str = Field(default="0.0.0.0", description="API host")
     api_port: int = Field(default=8000, description="API port")
 
+    # Persistent data (logs, observed limits)
+    data_dir: str = Field(default="/app/data", description="Directory for logs and persisted state")
+
     # Logging
     log_level: str = Field(default="INFO", description="Log level")
 
-    # Polling intervals (seconds)
-    status_poll_interval: float = Field(default=5.0, description="Status polling interval")
+    # The tracker broadcasts status once per second; no polling is needed.
+    link_timeout: float = Field(default=10.0, description="Seconds without a status frame before the link is stale")
+    reconnect_interval: float = Field(default=10.0, description="Seconds between serial reconnect attempts")
 
     class Config:
         env_file = ".env"

@@ -8,16 +8,20 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - SERIAL_PORT=/dev/ttyUSB0
+      # Stable by-id path (find yours with: ls /dev/serial/by-id/)
+      - SERIAL_PORT=/dev/serial/by-id/usb-ftdi_usb_serial_converter_ftDITKGH-if00-port0
       - SERIAL_BAUDRATE=9600
       - MQTT_BROKER=mosquitto
       - MQTT_PORT=1883
       - MQTT_TOPIC_PREFIX=solartracker
       - LOG_LEVEL=INFO
       - SBFSPOT_DB=/data/SBFspot.db
-    devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0
+    # /dev is mounted (not a fixed `devices:` entry) so the adapter is found again
+    # after it is re-plugged and re-enumerates as ttyUSB1, ttyUSB2, ...
+    device_cgroup_rules:
+      - 'c 188:* rmw'  # USB serial adapters
     volumes:
+      - /dev:/dev
       - ./data:/app/data
     group_add:
       - "20"  # dialout group GID for serial port access (check with: stat -c '%g' /dev/ttyUSB0)

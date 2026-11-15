@@ -10,45 +10,43 @@ let currentMode = 'manual';
 let lastUpdateTime = null;
 
 // DOM Elements
+const $ = id => document.getElementById(id);
 const el = {
-    serialStatus: document.getElementById('serial-status'),
-    serialText: document.getElementById('serial-text'),
-    wsStatus: document.getElementById('ws-status'),
-    wsText: document.getElementById('ws-text'),
-    lastUpdateBadge: document.getElementById('last-update-badge'),
-    portSelect: document.getElementById('port-select'),
-    baudrateSelect: document.getElementById('baudrate-select'),
-    refreshPortsBtn: document.getElementById('refresh-ports-btn'),
-    connectBtn: document.getElementById('connect-btn'),
-    disconnectBtn: document.getElementById('disconnect-btn'),
-    modeManualBtn: document.getElementById('mode-manual-btn'),
-    modeAutoBtn: document.getElementById('mode-auto-btn'),
-    stopBtn: document.getElementById('stop-btn'),
-    homeBtn: document.getElementById('home-btn'),
-    stowBtn: document.getElementById('stow-btn'),
-    syncClockBtn: document.getElementById('sync-clock-btn'),
-    sunAzimuth: document.getElementById('sun-azimuth'),
-    sunAltitude: document.getElementById('sun-altitude'),
-    posHorizontal: document.getElementById('pos-horizontal'),
-    posVertical: document.getElementById('pos-vertical'),
-    alarmBanner: document.getElementById('alarm-banner'),
-    alarmList: document.getElementById('alarm-list'),
-    alarmHistory: document.getElementById('alarm-history'),
-    clearAlarmsBtn: document.getElementById('clear-alarms-btn'),
-    clearHistoryBtn: document.getElementById('clear-history-btn'),
-    limitHMin: document.getElementById('limit-h-min'),
-    limitHMax: document.getElementById('limit-h-max'),
-    limitVMin: document.getElementById('limit-v-min'),
-    limitVMax: document.getElementById('limit-v-max'),
-    limitsSince: document.getElementById('limits-since'),
-    resetLimitsBtn: document.getElementById('reset-limits-btn'),
-    rawHex: document.getElementById('raw-hex'),
-    sendRawBtn: document.getElementById('send-raw-btn'),
-    debugLog: document.getElementById('debug-log'),
+    serialStatus: $('serial-status'),
+    linkStatus: $('link-status'),
+    wsStatus: $('ws-status'),
+    wsText: $('ws-text'),
+    lastUpdateBadge: $('last-update-badge'),
+    portSelect: $('port-select'),
+    refreshPortsBtn: $('refresh-ports-btn'),
+    connectBtn: $('connect-btn'),
+    disconnectBtn: $('disconnect-btn'),
+    modeManualBtn: $('mode-manual-btn'),
+    modeAutoBtn: $('mode-auto-btn'),
+    stopBtn: $('stop-btn'),
+    syncClockBtn: $('sync-clock-btn'),
+    sunAzimuth: $('sun-azimuth'),
+    sunAltitude: $('sun-altitude'),
+    posHorizontal: $('pos-horizontal'),
+    posVertical: $('pos-vertical'),
+    alarmBanner: $('alarm-banner'),
+    staleBanner: $('stale-banner'),
+    staleText: $('stale-text'),
+    alarmList: $('alarm-list'),
+    alarmHistory: $('alarm-history'),
+    clearAlarmsBtn: $('clear-alarms-btn'),
+    resetLimitsBtn: $('reset-limits-btn'),
+    maxWindInput: $('max-wind-input'),
+    setWindBtn: $('set-wind-btn'),
+    zeroBtn: $('zero-btn'),
 };
 
-// Informational alarms (expected, not critical)
-const INFO_ALARMS = ['tilt_limit_flat', 'unknown_alarm_1'];
+const SWITCH_NAMES = {
+    east_limit: 'East limit',
+    west_limit: 'West limit',
+    horizontal_limit: 'Flat limit',
+    vertical_limit: 'Upright limit',
+};
 
 // =============================================================================
 // API & Helpers
@@ -75,10 +73,14 @@ async function withLoading(btn, asyncFn) {
     }
 }
 
-function log(msg) {
-    if (!el.debugLog) return;
-    el.debugLog.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
-    el.debugLog.scrollTop = el.debugLog.scrollHeight;
+function log(msg) { console.log(`[tracker] ${msg}`); }
+
+// Run an action from a button; show failures instead of swallowing them
+function action(btn, fn) {
+    return withLoading(btn, async () => {
+        try { const r = await fn(); if (r && r.message) log(r.message); }
+        catch (e) { alert(e.message); }
+    });
 }
 
 // =============================================================================
@@ -109,8 +111,7 @@ function connectWebSocket() {
     ws.onmessage = (event) => {
         try {
             updateUI(JSON.parse(event.data));
-            lastUpdateTime = Date.now();
-        } catch (e) {}
+        } catch (e) { console.error(e); }
     };
 }
 
@@ -426,48 +427,52 @@ function updateAltitudeLimits(vMin, vMax) {
 // UI Updates
 // =============================================================================
 
-const ALARM_NAMES = {
-    'vertical_limit': 'Vertical Limit',
-    'tilt_limit_flat': 'Tilt Limit - Panel Flat (stow)',
-    'unknown_alarm_1': 'Unknown Alarm (bit 1)',
-    'west_limit': 'West Limit',
-    'wind_speed': 'Wind Speed Exceeded',
-    'actuator_current': 'Actuator Current',
-    'rotation_current': 'Rotation Current',
-    'unknown_alarm_6': 'Unknown Alarm (bit 6)',
-    'encoder_error': 'Encoder Error - BLOCKS ALL MOVEMENT',
-};
+const pad2 = n => String(n).padStart(2, '0');
+// Tracker timestamps are UTC without a zone suffix
+const asUTC = t => new Date(/Z|[+-]\d\d:\d\d$/.test(t) ? t : t + 'Z');
+const fmtUTC = d => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+
+function setChip(node, text, cls) {
+    node.textContent = text;
+    node.className = 'chip' + (cls ? ' ' + cls : '');
+}
 
 function updateUI(status) {
-    // Connection
+    // Connection and link
     isConnected = status.connection?.connected || false;
+    const linkOk = !!status.link_ok;
     el.serialStatus.classList.toggle('connected', isConnected);
-    el.serialText.textContent = isConnected ? 'Serial' : 'Serial';
+    el.linkStatus.classList.toggle('connected', linkOk);
     el.connectBtn.disabled = isConnected;
     el.disconnectBtn.disabled = !isConnected;
+    lastUpdateTime = status.last_frame ? asUTC(status.last_frame).getTime() : null;
 
-    // Auto-collapse connection panel when connected
-    const connPanel = document.getElementById('connection-panel');
-    if (isConnected && connPanel) connPanel.classList.add('collapsed');
+    el.staleBanner.style.display = linkOk ? 'none' : '';
+    el.staleText.textContent = !isConnected
+        ? 'Serial port not connected. Values below are the last received.'
+        : (status.last_frame
+            ? 'No data from the tracker. Values below are the last received.'
+            : 'Waiting for the first status frame from the tracker.');
+    document.body.classList.toggle('stale', !linkOk);
 
-    // Mode
+    // Mode: manual controls only work in manual mode
     currentMode = status.mode || 'manual';
-    el.modeManualBtn.classList.toggle('active', currentMode === 'manual');
-    el.modeAutoBtn.classList.toggle('active', currentMode === 'automatic');
+    const manual = currentMode === 'manual';
+    el.modeManualBtn.classList.toggle('active', manual);
+    el.modeAutoBtn.classList.toggle('active', !manual);
+    document.querySelector('.controls-col').classList.toggle('locked', !manual);
+    document.querySelectorAll('#dpad button, #presets button').forEach(b => { b.disabled = !manual; });
+    setChip($('chip-mode'), manual ? 'Manual' : 'Auto tracking', manual ? 'warn' : 'ok');
 
-    // Date/Time
+    // Tracker clock (UTC)
     if (status.utc_time) {
-        const dt = new Date(status.utc_time);
+        const dt = asUTC(status.utc_time);
         if (!isNaN(dt.getTime())) {
-            const pad = n => String(n).padStart(2, '0');
-            document.getElementById('tracker-date').textContent = `${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()}`;
-            document.getElementById('tracker-time').textContent = `${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+            $('tracker-date').textContent = `${pad2(dt.getUTCDate())}/${pad2(dt.getUTCMonth()+1)}/${dt.getUTCFullYear()}`;
+            $('tracker-time').textContent = `${pad2(dt.getUTCHours())}:${pad2(dt.getUTCMinutes())}:${pad2(dt.getUTCSeconds())} UTC`;
+            const drift = Math.round((dt.getTime() - (lastUpdateTime || Date.now())) / 1000);
+            $('d-clock').textContent = fmtUTC(dt) + (Math.abs(drift) > 60 ? ` (off by ${drift}s)` : '');
         }
-    }
-
-    // Firmware
-    if (status.firmware_version) {
-        document.getElementById('firmware-version').textContent = status.firmware_version;
     }
 
     // Positions
@@ -475,8 +480,6 @@ function updateUI(status) {
     const sunAlt = status.sun_position?.altitude ?? null;
     const panelH = status.position?.horizontal ?? null;
     const panelV = status.position?.vertical ?? null;
-    // Raw value = panel normal angle from horizontal (matches sun altitude when tracking)
-    // 90° = panel faces zenith (flat/stowed), ~35° = panel faces sun at 35°
 
     el.sunAzimuth.textContent = sunAzi !== null ? sunAzi.toFixed(1) : '--';
     el.sunAltitude.textContent = sunAlt !== null ? sunAlt.toFixed(1) : '--';
@@ -486,70 +489,93 @@ function updateUI(status) {
     updateCompass(sunAzi, panelH);
     updateAltitudeGauge(sunAlt, panelV);
     updateScene(sunAzi, sunAlt, panelH, panelV);
-
-    // Observed Limits
     updateObservedLimits(status.observed_limits);
 
-    // Alarms (suppress tilt_limit_flat at night — it's expected when stowed)
-    const isNight = sunAlt !== null && sunAlt < 0;
-    updateAlarms(status.alarms || [], isNight);
+    // Tracking offset (only meaningful with the sun up)
+    const chipOffset = $('chip-offset');
+    if (sunAzi !== null && panelH !== null && sunAlt !== null && sunAlt > 3) {
+        const off = Math.abs(((panelH - sunAzi + 540) % 360) - 180);
+        setChip(chipOffset, `Offset ${off.toFixed(0)}\u00B0`, off > 15 ? 'bad' : (off > 5 ? 'warn' : 'ok'));
+        chipOffset.style.display = '';
+    } else {
+        chipOffset.style.display = 'none';
+    }
+
+    // Wind
+    const wind = status.wind_speed;
+    const ws = status.wind_settings;
+    const windCls = ws && wind !== null && wind !== undefined
+        ? (wind > ws.trip ? 'bad' : (wind > ws.release ? 'warn' : '')) : '';
+    setChip($('chip-wind'), `Wind ${wind ?? '--'} km/h`, windCls);
+    $('d-wind').textContent = wind ?? '--';
+    $('d-wind-settings').textContent = ws
+        ? `above ${ws.trip} km/h, clears after ${ws.hold_minutes} min below ${ws.release}`
+        : 'not read yet';
+    if (ws && !el.maxWindInput.value && document.activeElement !== el.maxWindInput) {
+        el.maxWindInput.placeholder = `Wind limit (now ${ws.trip} km/h)`;
+    }
+
+    // Limit switches are normal states, shown as chips rather than alarms
+    const sw = $('chip-switches');
+    sw.innerHTML = '';
+    (status.limit_switches || []).forEach(code => {
+        const c = document.createElement('span');
+        c.className = 'chip';
+        c.textContent = SWITCH_NAMES[code] || code;
+        sw.appendChild(c);
+    });
+
+    // Details
+    $('d-enc-rot').textContent = status.rotation_encoder ?? '--';
+    $('d-enc-tilt').textContent = status.tilt_encoder ?? '--';
+    if (status.firmware_version) $('firmware-version').textContent = status.firmware_version;
+    $('d-alarm-word').textContent = '0x' + (status.alarm_word || 0).toString(16).toUpperCase().padStart(4, '0');
+    $('d-frames').textContent = `${status.frames_ok ?? 0} / ${status.frames_bad ?? 0}`;
+
+    updateAlarms((status.active_alarms || []).filter(a => a.severity !== 'info'));
     updateAlarmHistory(status.alarm_history || []);
 }
 
 function updateObservedLimits(limits) {
     if (!limits) return;
-    const fmt = v => v !== null && v !== undefined ? v.toFixed(1) : '--';
-    el.limitHMin.textContent = fmt(limits.horizontal_min);
-    el.limitHMax.textContent = fmt(limits.horizontal_max);
-    el.limitVMin.textContent = fmt(limits.vertical_min);
-    el.limitVMax.textContent = fmt(limits.vertical_max);
-
-    if (el.limitsSince && limits.first_seen) {
-        const dt = new Date(limits.first_seen);
-        el.limitsSince.textContent = !isNaN(dt.getTime()) ?
-            dt.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '--';
-    }
-
     updateCompassLimits(limits.horizontal_min ?? null, limits.horizontal_max ?? null);
     updateAltitudeLimits(limits.vertical_min ?? null, limits.vertical_max ?? null);
 }
 
-function updateAlarms(alarms, isNight) {
-    // At night, suppress tilt_limit_flat (expected when stowed)
-    const filtered = isNight ? alarms.filter(a => a !== 'tilt_limit_flat') : alarms;
-    const hasAlarms = filtered.length > 0;
-    el.alarmBanner.style.display = hasAlarms ? '' : 'none';
-
-    if (hasAlarms) {
-        const allInfo = filtered.every(a => INFO_ALARMS.includes(a));
-        el.alarmBanner.classList.toggle('info-alarm', allInfo);
-        el.alarmList.innerHTML = '';
-        filtered.forEach(a => {
-            const li = document.createElement('li');
-            li.textContent = ALARM_NAMES[a] || a;
-            el.alarmList.appendChild(li);
-        });
-    }
+function updateAlarms(alarms) {
+    el.alarmBanner.style.display = alarms.length ? '' : 'none';
+    if (!alarms.length) return;
+    el.alarmBanner.classList.toggle('warn-alarm', alarms.every(a => a.severity === 'warning'));
+    el.alarmList.innerHTML = '';
+    alarms.forEach(a => {
+        const li = document.createElement('li');
+        li.textContent = a.message;
+        if (a.timestamp) {
+            const s = document.createElement('small');
+            s.textContent = 'since ' + fmtUTC(asUTC(a.timestamp)) + ' UTC';
+            li.appendChild(s);
+        }
+        el.alarmList.appendChild(li);
+    });
 }
 
 function updateAlarmHistory(history) {
-    if (!el.alarmHistory) return;
     el.alarmHistory.innerHTML = '';
     if (history.length === 0) {
         const li = document.createElement('li');
         li.className = 'no-history';
-        li.textContent = 'No alarm history';
+        li.textContent = 'No alarms logged';
         el.alarmHistory.appendChild(li);
         return;
     }
     history.forEach(entry => {
-        const ts = new Date(entry.timestamp);
-        const d = ts.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
-        const t = ts.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
         const li = document.createElement('li');
+        const dot = document.createElement('span');
+        dot.className = 'sev ' + entry.severity;
         const span = document.createElement('span');
         span.className = 'history-time';
-        span.textContent = d + ' ' + t;
+        span.textContent = fmtUTC(asUTC(entry.timestamp));
+        li.appendChild(dot);
         li.appendChild(span);
         li.appendChild(document.createTextNode(' ' + entry.message));
         el.alarmHistory.appendChild(li);
@@ -558,9 +584,10 @@ function updateAlarmHistory(history) {
 
 // Last update timer
 setInterval(() => {
-    if (!lastUpdateTime || !el.lastUpdateBadge) return;
-    const secs = Math.round((Date.now() - lastUpdateTime) / 1000);
-    el.lastUpdateBadge.textContent = secs < 60 ? `${secs}s` : `${Math.floor(secs/60)}m`;
+    if (!el.lastUpdateBadge) return;
+    if (!lastUpdateTime) { el.lastUpdateBadge.textContent = 'no data'; return; }
+    const secs = Math.max(0, Math.round((Date.now() - lastUpdateTime) / 1000));
+    el.lastUpdateBadge.textContent = secs < 60 ? `${secs}s` : (secs < 3600 ? `${Math.floor(secs/60)}m` : `${Math.floor(secs/3600)}h`);
     el.lastUpdateBadge.style.borderColor = secs > 10 ? 'var(--warning)' : 'var(--info)';
 }, 1000);
 
@@ -697,48 +724,32 @@ async function refreshPorts() {
         opt.textContent = `${p.device} - ${p.description}`;
         el.portSelect.appendChild(opt);
     });
-    log(`Found ${data.ports.length} ports`);
 }
 
 async function connect() {
     const port = el.portSelect.value;
-    if (!port) { alert('Select a port'); return; }
-    const baud = parseInt(el.baudrateSelect.value);
-    const data = await apiCall(`/serial/connect?port=${encodeURIComponent(port)}&baudrate=${baud}`, 'POST');
-    log(data.message);
+    if (!port) throw new Error('Select a port');
+    return apiCall(`/serial/connect?port=${encodeURIComponent(port)}&baudrate=9600`, 'POST');
 }
 
-async function disconnect() {
-    const data = await apiCall('/serial/disconnect', 'POST');
-    log(data.message);
-}
-
-async function moveForDuration(dir, ms) {
+async function nudge(dir, ms) {
     await apiCall(`/tracker/move/${dir}/start`, 'POST');
     await new Promise(r => setTimeout(r, ms));
     await apiCall(`/tracker/move/${dir}/stop`, 'POST');
 }
 
-async function goHome() {
-    const data = await apiCall('/tracker/home', 'POST');
-    log(data.message);
+async function setWind() {
+    const v = parseInt(el.maxWindInput.value, 10);
+    if (!(v >= 10 && v <= 99)) throw new Error('Enter a wind limit between 10 and 99 km/h');
+    if (!confirm(`Set the wind limit to ${v} km/h? This is stored in the tracker.`)) return;
+    const r = await apiCall('/tracker/wind', 'POST', { max_wind: v });
+    el.maxWindInput.value = '';
+    return r;
 }
 
-async function goStow() {
-    const data = await apiCall('/tracker/stow', 'POST');
-    log(data.message);
-}
-
-async function syncClock() {
-    const data = await apiCall('/tracker/datetime/sync', 'POST');
-    log(data.message);
-}
-
-async function sendRaw() {
-    const hex = el.rawHex.value.replace(/\s/g, '');
-    if (!hex || !/^[0-9a-fA-F]+$/.test(hex)) { alert('Invalid hex'); return; }
-    const data = await apiCall(`/serial/send?data=${hex}`, 'POST');
-    log(`Sent: ${hex} - ${data.message}`);
+async function zeroPanel() {
+    if (!confirm('Start the homing routine? The tracker will move by itself.')) return;
+    return apiCall('/tracker/zero?confirm=true', 'POST');
 }
 
 // =============================================================================
@@ -746,45 +757,40 @@ async function sendRaw() {
 // =============================================================================
 
 function setup() {
-    // Collapsible panels
     document.querySelectorAll('.clickable[data-toggle]').forEach(header => {
-        header.addEventListener('click', () => {
-            document.getElementById(header.dataset.toggle).classList.toggle('collapsed');
-        });
+        header.addEventListener('click', () => $(header.dataset.toggle).classList.toggle('collapsed'));
     });
 
-    // Connection
-    el.refreshPortsBtn.addEventListener('click', () => withLoading(el.refreshPortsBtn, refreshPorts));
-    el.connectBtn.addEventListener('click', () => withLoading(el.connectBtn, connect));
-    el.disconnectBtn.addEventListener('click', () => withLoading(el.disconnectBtn, disconnect));
+    el.refreshPortsBtn.addEventListener('click', () => action(el.refreshPortsBtn, refreshPorts));
+    el.connectBtn.addEventListener('click', () => action(el.connectBtn, connect));
+    el.disconnectBtn.addEventListener('click', () => action(el.disconnectBtn, () => apiCall('/serial/disconnect', 'POST')));
 
-    // Mode
-    el.modeManualBtn.addEventListener('click', () => withLoading(el.modeManualBtn, () => apiCall('/tracker/mode/manual', 'POST')));
-    el.modeAutoBtn.addEventListener('click', () => withLoading(el.modeAutoBtn, () => apiCall('/tracker/mode/automatic', 'POST')));
+    // Mode changes are written to the tracker's flash, so confirm them
+    el.modeManualBtn.addEventListener('click', () => {
+        if (currentMode === 'manual' || !confirm('Switch to manual? Sun tracking stops until you switch back.')) return;
+        action(el.modeManualBtn, () => apiCall('/tracker/mode/manual', 'POST'));
+    });
+    el.modeAutoBtn.addEventListener('click', () => {
+        if (currentMode === 'automatic') return;
+        action(el.modeAutoBtn, () => apiCall('/tracker/mode/automatic', 'POST'));
+    });
 
-    // D-Pad
     document.querySelectorAll('.dpad-btn[data-direction]').forEach(btn => {
-        btn.addEventListener('click', () => moveForDuration(btn.dataset.direction, 500));
+        btn.addEventListener('click', () => nudge(btn.dataset.direction, 500).catch(e => alert(e.message)));
     });
-    el.stopBtn.addEventListener('click', () => withLoading(el.stopBtn, () => apiCall('/tracker/stop', 'POST')));
+    el.stopBtn.addEventListener('click', () => action(el.stopBtn, () => apiCall('/tracker/stop', 'POST')));
+    document.querySelectorAll('#presets button').forEach(btn => {
+        btn.addEventListener('click', () => action(btn, () => apiCall(`/tracker/position/${btn.dataset.preset}`, 'POST')));
+    });
 
-    // Presets
-    el.homeBtn.addEventListener('click', () => withLoading(el.homeBtn, goHome));
-    el.stowBtn.addEventListener('click', () => withLoading(el.stowBtn, goStow));
-
-    // Sync clock
-    el.syncClockBtn.addEventListener('click', () => withLoading(el.syncClockBtn, syncClock));
-
-    // Alarms
-    el.clearAlarmsBtn.addEventListener('click', () => withLoading(el.clearAlarmsBtn, () => apiCall('/tracker/alarms/clear', 'POST')));
-    el.clearHistoryBtn.addEventListener('click', () => withLoading(el.clearHistoryBtn, () => apiCall('/tracker/alarms/clear-history', 'POST')));
-
-    // Limits
-    el.resetLimitsBtn.addEventListener('click', () => withLoading(el.resetLimitsBtn, () => apiCall('/tracker/limits/reset', 'POST')));
-
-    // Debug
-    el.sendRawBtn.addEventListener('click', () => withLoading(el.sendRawBtn, sendRaw));
-    el.rawHex.addEventListener('keypress', e => { if (e.key === 'Enter') sendRaw(); });
+    el.syncClockBtn.addEventListener('click', () => action(el.syncClockBtn, () => apiCall('/tracker/datetime/sync', 'POST')));
+    el.setWindBtn.addEventListener('click', () => action(el.setWindBtn, setWind));
+    el.zeroBtn.addEventListener('click', () => action(el.zeroBtn, zeroPanel));
+    el.clearAlarmsBtn.addEventListener('click', () => {
+        if (!confirm('Clear alarms? This also erases the tracker\'s alarm log.')) return;
+        action(el.clearAlarmsBtn, () => apiCall('/tracker/alarms/clear', 'POST'));
+    });
+    el.resetLimitsBtn.addEventListener('click', () => action(el.resetLimitsBtn, () => apiCall('/tracker/limits/reset', 'POST')));
 }
 
 // =============================================================================

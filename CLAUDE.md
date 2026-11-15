@@ -15,8 +15,8 @@ The system communicates with the tracker via RS-485 serial (FTDI USB adapter) an
 
 ## Key Files
 
-- `src/solartracker/main.py` — FastAPI app, WebSocket, state change logging, serial data parsing
-- `src/solartracker/protocol.py` — Serial protocol: packet building, response parsing, alarm/mode decoding
+- `src/solartracker/main.py` — FastAPI app, WebSocket, state change logging, link watchdog
+- `src/solartracker/protocol.py` — Serial protocol: frame builder, validating decoder, status and alarm decoding
 - `src/solartracker/serial_handler.py` — RS-485 serial communication with RTS toggling
 - `src/solartracker/mqtt_handler.py` — MQTT publishing and HA auto-discovery
 - `src/solartracker/inverter.py` — SMA inverter data from SBFspot SQLite DB (read-only)
@@ -29,14 +29,17 @@ The system communicates with the tracker via RS-485 serial (FTDI USB adapter) an
 
 ## Protocol Notes
 
-- RS-485 half-duplex, 9600 baud, RTS toggling for TX/RX
-- Packets: header `81 FF 00 82 00` + type + command + `83` + checksum
-- Status response: 38 bytes (or 135 with firmware version)
-- Alarm byte at **offset 37** (not 36)
-- Mode byte 7: **0x00 = AUTO**, 0x01 = MANUAL (inverted from what you'd expect)
-- Panel vertical: **90 = flat/stowed**, 0 = vertical — angle from vertical, not horizontal
-- Status flags byte 20: changes rapidly during movement, motor/encoder related
-- Alarm bytes >= 0xF0 are corrupt packets, ignore them
+Full reference: `docs/protocol.md` (re-derived Nov 2026 from the firmware and STcontrol; it supersedes older notes).
+
+- 9600 8N1, RTS toggled around transmit
+- Frame: `81 DST SRC 82 LEN_HI LEN_LO CMD DATA 83 CHK` — LEN counts CMD+DATA, CHK is the sum of all preceding bytes
+- The tracker **broadcasts** a 132-byte status frame (CMD `0x50`) once per second. There is no status request; never poll
+- Alarms are a **16-bit word at offsets 36–37**. Bits 9–12 are limit switches (normal states), bit 15 is wind, bits 0–1 are encoder errors
+- Mode byte 7: **0x00 = AUTO**, 0x01 = MANUAL. `0x10` sets manual, `0x11` sets auto; each switch rewrites the tracker's flash
+- Panel altitude: **90 = flat**, lower = more upright. Wind is km/h at offsets 34–35. The tracker clock is UTC
+- `0x31` is ZERAR PAINEL (homing, the tracker moves). `0x30`–`0x36` change calibration
+- **Never send `0xF0`–`0xF2`**: they are the firmware-update path. `protocol.build_frame` refuses them
+- Always decode through `protocol.FrameDecoder` (checksum-validated); do not parse raw byte offsets from the serial stream
 
 ## Development
 
@@ -59,13 +62,14 @@ docker compose up -d
 
 ## Environment Variables
 
-- `SERIAL_PORT` — Serial device (default: `/dev/ttyUSB0`)
+- `SERIAL_PORT` — Serial device (default: `/dev/ttyUSB0`; compose maps the adapter's `/dev/serial/by-id/...` path to `/dev/tracker`)
 - `SERIAL_BAUDRATE` — Baud rate (default: `9600`)
 - `MQTT_BROKER` — MQTT host (default: `mosquitto`)
 - `MQTT_PORT` — MQTT port (default: `1883`)
 - `MQTT_TOPIC_PREFIX` — Topic prefix (default: `solartracker`)
 - `SBFSPOT_DB` — Path to SBFspot SQLite DB (default: `/data/SBFspot.db`)
 - `LOG_LEVEL` — Python log level (default: `INFO`)
+- `DATA_DIR` — Logs and persisted state (default: `/app/data`)
 
 ## Serial Port Access
 
@@ -77,7 +81,7 @@ Common values: `20` (Raspberry Pi OS), `46` (some Debian/Ubuntu). Update `group_
 
 ## Common Issues
 
-- **WebSocket disconnect kills serial**: Fixed — `broadcast_status()` catches `ValueError` on list removal race condition, `_read_loop` catches all exceptions to stay alive
-- **False alarms (all bits set)**: Corrupt packets with alarm byte >= 0xF0 are filtered out
-- **Tilt limit alarm at night**: Expected — panel is stowed flat, alarm is suppressed in the UI when sun is below horizon
+- **Adapter re-plugged / re-enumerated**: the read loop drops the port on I/O error and the housekeeping loop reconnects every 10 s; compose uses the by-id path so the device name stays stable
+- **"Tracker" badge grey / stale banner**: serial is open but no status frames are arriving — check the cable and tracker power
+- **Flat limit shown at night**: expected — the panel is stowed flat on its horizontal limit switch; it is shown as a chip, not an alarm
 - **WiFi drops on Pi Zero 2W**: WiFi watchdog service restarts wlan0/wpa_supplicant before rebooting. WPA3-only APs cause issues — use SAE-mixed mode
