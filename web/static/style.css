@@ -614,7 +614,26 @@ footer {
 .controls-col.locked .dpad, .controls-col.locked .presets, .controls-col.locked .goto { opacity: 0.35; }
 .goto { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
 .goto label { font-size: 0.8rem; color: var(--text-dim); display: block; }
-.goto output { float: right; color: var(--text); font-variant-numeric: tabular-nums; }
+.goto-title { font-size: 0.8rem; font-weight: 600; }
+.hint-inline { font-weight: 400; font-size: 0.7rem; color: var(--text-dim); margin-left: 4px; }
+.goto-val { float: right; color: var(--text); }
+.goto-val input { width: 3.6em; background: transparent; color: var(--text); border: 1px solid var(--border, #30363d); border-radius: 4px; padding: 1px 3px; font: inherit; text-align: right; }
+.goto-val input:disabled { opacity: 0.5; }
+.goto-note { font-size: 0.7rem; color: #d29922; }
+.goto-buttons { display: flex; gap: 6px; }
+.goto-buttons #goto-btn { flex: 1; }
+#goto-btn.stop { background: var(--danger); border-color: var(--danger); color: #fff; }
+/* Target (where the panel was asked to go) on the dials */
+.compass-svg .target-needle line { stroke: #39c5cf; stroke-width: 2; stroke-dasharray: 5 4; stroke-linecap: round; }
+.compass-svg .target-needle circle { fill: none; stroke: #39c5cf; stroke-width: 2; }
+.altitude-svg .target-line { stroke: #39c5cf; stroke-width: 2; stroke-dasharray: 5 4; }
+.altitude-svg .target-dot { fill: none; stroke: #39c5cf; stroke-width: 2; }
+.compass-svg .target-needle.moving circle, .altitude-svg .moving .target-dot { animation: target-pulse 1s ease-in-out infinite; }
+@keyframes target-pulse { 50% { stroke-width: 5; opacity: 0.5; } }
+/* The tracker reports once per second: glide between reports */
+.compass-svg .panel-needle { transition: transform 1s linear; }
+.altitude-svg #panel-alt-needle { transition: all 1s linear; }
+body.can-aim .compass-svg, body.can-aim .altitude-svg { cursor: crosshair; touch-action: none; }
 .goto input[type="range"] { width: 100%; margin: 4px 0 0; }
 .goto-ends { display: flex; justify-content: space-between; font-size: 0.65rem; opacity: 0.7; }
 .goto-status { font-size: 0.75rem; min-height: 1.2em; text-align: center; color: var(--text-dim); }

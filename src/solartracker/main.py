@@ -211,10 +211,76 @@ def _apply_status(st: dict):
 
 async def _goto_changed():
     current_status.goto = goto.state
+    if not goto.state.active and goto.state.phase == "failed" and current_status.link_ok:
+        await _verified_stop()
     await broadcast_status()
 
 
 goto = GotoController(serial_handler, lambda: current_status, _goto_changed)
+
+
+# Verified stop. A single frame can be lost on the serial line (seen on the real
+# tracker), and a lost stop leaves the motor running. So: send stop twice, then
+# watch the position and repeat the stop until the panel is actually still.
+_frame_event = asyncio.Event()
+_stop_guard_task: asyncio.Task | None = None
+
+
+def _panel_pos():
+    p = current_status.position
+    return (p.vertical or 0.0, p.horizontal or 0.0)
+
+
+async def _stop_guard():
+    try:
+        prev, still = None, 0
+        for i in range(15):
+            _frame_event.clear()
+            await asyncio.wait_for(_frame_event.wait(), 4)
+            if current_status.mode != OperatingMode.MANUAL:
+                return  # in automatic the tracker moves by itself
+            pos = _panel_pos()
+            if prev is not None:
+                if all(abs(a - b) < 0.02 for a, b in zip(pos, prev)):
+                    still += 1
+                    if still >= 2:
+                        return
+                else:
+                    still = 0
+                    if i >= 2:
+                        logger.warning(f"Panel still moving after stop (at {pos}), repeating stop")
+                        await serial_handler.stop()
+            prev = pos
+        logger.error("Panel did not stop after repeated stop commands")
+    except asyncio.TimeoutError:
+        logger.warning("Stop could not be verified: no status frames")
+
+
+def _disarm_stop_guard():
+    """A new movement was requested; stop watching for a standstill."""
+    global _stop_guard_task
+    if _stop_guard_task and not _stop_guard_task.done():
+        _stop_guard_task.cancel()
+    _stop_guard_task = None
+
+
+async def _verified_stop() -> bool:
+    """Send stop (twice) and keep checking until the panel is still."""
+    global _stop_guard_task
+    _disarm_stop_guard()
+    ok = await serial_handler.stop()
+    await asyncio.sleep(0.25)
+    ok = await serial_handler.stop() or ok
+    _stop_guard_task = asyncio.create_task(_stop_guard())
+    return ok
+
+
+async def _move(direction: Direction, start: bool = True) -> bool:
+    """Start a jog, or stop with verification."""
+    if not start:
+        return await _verified_stop()
+    _disarm_stop_guard()
+    return await serial_handler.move(direction, start=True)
 
 
 # Hold-to-move: the browser refreshes the jog while an arrow is held. If the
@@ -225,18 +291,25 @@ _jog = {"direction": None, "started": 0.0, "deadline": 0.0}
 
 
 async def _jog_watchdog(token: float):
-    """Send stop once the current jog's deadline passes."""
+    """Send stop once the current jog's deadline passes; retry a start that had no effect."""
+    start_pos, retried = _panel_pos(), False
     while _jog["direction"] is not None and _jog["started"] == token:
-        if time.monotonic() >= _jog["deadline"]:
+        now = time.monotonic()
+        if now >= _jog["deadline"]:
             _jog["direction"] = None
-            await serial_handler.stop()
+            await _verified_stop()
             return
+        if not retried and now - token > 3.5 and _panel_pos() == start_pos:
+            retried = True
+            logger.warning("Jog had no effect, repeating the command")
+            await serial_handler.move(_jog["direction"], start=True)
         await asyncio.sleep(0.1)
 
 
 async def _preempt():
     """Another command takes over: forget any held jog and abort a running go-to."""
     _jog["direction"] = None
+    _disarm_stop_guard()
     await goto.cancel("Stopped by another command")
 
 
@@ -253,6 +326,7 @@ async def on_serial_data(data: bytes):
             _log_state_changes(st, frame.raw)
             _apply_status(st)
             goto.notify_frame()
+            _frame_event.set()
             updated = True
             if _need_wind_read:
                 # Read-only query; the reply (0x51) fills in wind_settings
@@ -336,7 +410,7 @@ async def lifespan(app: FastAPI):
     # Set up MQTT callbacks
 
     mqtt_handler.set_callbacks(
-        on_move=lambda d, s: serial_handler.move(d, s),
+        on_move=lambda d, s: _move(d, s),
         on_mode=lambda auto: serial_handler.set_mode(auto),
         on_clear_alarms=lambda: serial_handler.clear_alarms(),
         on_set_wind=lambda v: _set_wind(v),
@@ -500,13 +574,13 @@ async def move_tracker(command: MoveCommand):
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
-    success = await serial_handler.move(command.direction, start=True)
+    success = await _move(command.direction, start=True)
 
     # If duration specified, stop after delay
     if success and command.duration_ms:
         async def stop_after_delay():
             await asyncio.sleep(command.duration_ms / 1000)
-            await serial_handler.move(command.direction, start=False)
+            await _verified_stop()
 
         asyncio.create_task(stop_after_delay())
 
@@ -523,7 +597,7 @@ async def start_move(direction: Direction):
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
-    success = await serial_handler.move(direction, start=True)
+    success = await _move(direction, start=True)
     return CommandResponse(
         success=success,
         message=f"Started moving {direction.value}" if success else "Command failed",
@@ -537,7 +611,7 @@ async def stop_move(direction: Direction):
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
-    success = await serial_handler.move(direction, start=False)
+    success = await _verified_stop()
     return CommandResponse(
         success=success,
         message="Stopped" if success else "Command failed",
@@ -567,6 +641,7 @@ async def jog(direction: Direction):
     await goto.cancel("Stopped by another command")
     now = time.monotonic()
     if _jog["direction"] != direction:
+        _disarm_stop_guard()
         if not await serial_handler.move(direction, start=True):
             _jog["direction"] = None
             raise HTTPException(status_code=500, detail="Command failed")
@@ -584,7 +659,7 @@ async def stop_all():
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
-    success = await serial_handler.stop()
+    success = await _verified_stop()
     return CommandResponse(
         success=success,
         message="Stopped" if success else "Command failed",
@@ -723,6 +798,7 @@ async def go_to_angle(command: GotoCommand):
     if current_status.mode != OperatingMode.MANUAL:
         raise HTTPException(status_code=409, detail="Switch to manual mode first")
     _jog["direction"] = None
+    _disarm_stop_guard()
     try:
         goto.start(command.altitude, command.azimuth)
     except GotoError as e:

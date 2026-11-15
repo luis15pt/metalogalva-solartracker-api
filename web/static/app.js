@@ -734,36 +734,124 @@ async function connect() {
     return apiCall(`/serial/connect?port=${encodeURIComponent(port)}&baudrate=9600`, 'POST');
 }
 
-// Go-to-angle: sliders start at the current position and are left alone once touched
+// Go-to-angle: sliders start at the current position and are left alone once touched.
+// The chosen target is drawn as a dashed needle on both dials; the dials can be dragged.
 const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 let gotoTouched = { alt: false, azi: false };
+let gotoActive = false;
+
+function altPoint(alt, min = 0) {
+    const c = Math.max(min, Math.min(90, alt)), rad = (180 - c) * Math.PI / 180;
+    return { x: 100 + 80 * Math.cos(rad), y: 105 - 80 * Math.sin(rad) };
+}
+
+function showTargets(alt, azi, moving) {
+    const cn = $('target-needle'), an = $('target-alt');
+    cn.style.display = azi == null ? 'none' : '';
+    if (azi != null) cn.style.transform = `rotate(${azi}deg)`;
+    cn.classList.toggle('moving', !!moving);
+    an.style.display = alt == null ? 'none' : '';
+    if (alt != null) {
+        const pt = altPoint(alt);
+        $('target-alt-needle').setAttribute('x2', pt.x); $('target-alt-needle').setAttribute('y2', pt.y);
+        $('target-alt-dot').setAttribute('cx', pt.x); $('target-alt-dot').setAttribute('cy', pt.y);
+    }
+    an.classList.toggle('moving', !!moving);
+}
 
 function showGotoValues() {
-    $('goto-alt-out').textContent = `${$('goto-alt').value}°`;
-    const a = parseInt($('goto-azi').value, 10);
-    $('goto-azi-out').textContent = `${a}° ${COMPASS[Math.round(a / 45) % 8]}`;
+    const alt = parseInt($('goto-alt').value, 10), azi = parseInt($('goto-azi').value, 10);
+    if (document.activeElement !== $('goto-alt-num')) $('goto-alt-num').value = alt;
+    if (document.activeElement !== $('goto-azi-num')) $('goto-azi-num').value = azi;
+    $('goto-azi-card').textContent = COMPASS[Math.round(azi / 45) % 8];
+    if (!gotoActive) showTargets(gotoTouched.alt ? alt : null, gotoTouched.azi ? azi : null, false);
+    // Enable Go/Reset straight away rather than on the next status frame
+    const chosen = gotoTouched.alt || gotoTouched.azi, btn = $('goto-btn');
+    if (!gotoActive && currentMode === 'manual' && !btn.classList.contains('loading')) {
+        btn.disabled = !chosen;
+        $('goto-reset').disabled = !chosen;
+    }
 }
+
+function setGotoTarget(axis, value) {
+    const sl = $(axis === 'alt' ? 'goto-alt' : 'goto-azi');
+    if (sl.disabled || isNaN(value)) return;
+    sl.value = Math.max(+sl.min, Math.min(+sl.max, Math.round(value)));
+    gotoTouched[axis] = true;
+    showGotoValues();
+}
+
+function resetGoto() {
+    gotoTouched = { alt: false, azi: false };
+    if (lastStatus) updateGoto(lastStatus, currentMode === 'manual');
+}
+
+let lastStatus = null;
 
 function updateGoto(status, manual) {
-    const pos = status.position || {};
+    lastStatus = status;
+    const pos = status.position || {}, g = status.goto || {};
+    gotoActive = !!g.active;
+    const rotFault = (status.alarms || []).includes('rotation_encoder');
+    if (rotFault) gotoTouched.azi = false;
     if (!gotoTouched.alt && pos.vertical != null) $('goto-alt').value = Math.round(pos.vertical);
     if (!gotoTouched.azi && pos.horizontal != null) $('goto-azi').value = Math.round(pos.horizontal);
-    showGotoValues();
-    const g = status.goto || {};
-    $('goto-alt').disabled = $('goto-azi').disabled = !manual || g.active;
-    $('goto-btn').disabled = !manual || g.active;
+
+    const locked = !manual || gotoActive;
+    $('goto-alt').disabled = $('goto-alt-num').disabled = locked;
+    $('goto-azi').disabled = $('goto-azi-num').disabled = locked || rotFault;
+    $('goto-azi-note').style.display = rotFault ? '' : 'none';
+    $('goto-reset').disabled = locked || !(gotoTouched.alt || gotoTouched.azi);
+    document.body.classList.toggle('can-aim', !locked);
+
+    const btn = $('goto-btn');
+    if (!btn.classList.contains('loading')) {
+        btn.textContent = gotoActive ? 'Stop' : 'Go there';
+        btn.classList.toggle('stop', gotoActive);
+        btn.disabled = !manual || (!gotoActive && !(gotoTouched.alt || gotoTouched.azi));
+    }
+
     const st = $('goto-status');
-    st.textContent = g.active ? `${g.message}… press ■ to stop` : (g.phase && g.phase !== 'idle' ? g.message : '');
-    st.className = 'goto-status ' + (g.active ? '' : g.phase || '');
-    if (!g.active && (g.phase === 'done' || g.phase === 'cancelled')) gotoTouched = { alt: false, azi: false };
+    if (gotoActive) {
+        const bits = [];
+        if (g.target_altitude != null) bits.push(`tilt ${pos.vertical?.toFixed(1)}° → ${g.target_altitude}°`);
+        if (g.target_azimuth != null) bits.push(`direction ${pos.horizontal?.toFixed(1)}° → ${g.target_azimuth}°`);
+        st.textContent = 'Moving: ' + bits.join(', ');
+        showTargets(g.target_altitude, g.target_azimuth, true);
+    } else {
+        st.textContent = g.phase && g.phase !== 'idle' ? g.message : '';
+        if (g.phase === 'done' && gotoWasActive) gotoTouched = { alt: false, azi: false };
+    }
+    st.className = 'goto-status ' + (gotoActive ? '' : g.phase || '');
+    gotoWasActive = gotoActive;
+    showGotoValues();
 }
+let gotoWasActive = false;
 
 async function goThere() {
+    if (gotoActive) return apiCall('/tracker/stop', 'POST');
     const body = {};
     if (gotoTouched.alt) body.altitude = parseFloat($('goto-alt').value);
     if (gotoTouched.azi) body.azimuth = parseFloat($('goto-azi').value);
-    if (!Object.keys(body).length) throw new Error('Move a slider to choose where the panel should go');
+    if (!Object.keys(body).length) throw new Error('Choose a tilt or direction first');
     return apiCall('/tracker/goto', 'POST', body);
+}
+
+// Drag on a dial to choose the target
+function dialDrag(svg, toValue, axis) {
+    const aim = e => {
+        const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+        setGotoTarget(axis, toValue(vb.x + (e.clientX - r.left) * vb.width / r.width, vb.y + (e.clientY - r.top) * vb.height / r.height));
+    };
+    svg.addEventListener('pointerdown', e => {
+        if (!document.body.classList.contains('can-aim') || e.button) return;
+        e.preventDefault();
+        try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+        svg.dataset.drag = '1';
+        aim(e);
+    });
+    svg.addEventListener('pointermove', e => { if (svg.dataset.drag) aim(e); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => svg.addEventListener(ev, () => { delete svg.dataset.drag; }));
 }
 
 // Hold-to-move: refresh the jog while an arrow is held; the Pi stops by itself
@@ -843,6 +931,12 @@ function setup() {
     el.stopBtn.addEventListener('click', () => action(el.stopBtn, () => apiCall('/tracker/stop', 'POST')));
     $('goto-alt').addEventListener('input', () => { gotoTouched.alt = true; showGotoValues(); });
     $('goto-azi').addEventListener('input', () => { gotoTouched.azi = true; showGotoValues(); });
+    $('goto-alt-num').addEventListener('input', e => setGotoTarget('alt', parseFloat(e.target.value)));
+    $('goto-azi-num').addEventListener('input', e => setGotoTarget('azi', parseFloat(e.target.value)));
+    ['goto-alt-num', 'goto-azi-num'].forEach(id => $(id).addEventListener('blur', showGotoValues));
+    $('goto-reset').addEventListener('click', resetGoto);
+    dialDrag($('compass-gauge'), (x, y) => (Math.atan2(x - 100, 100 - y) * 180 / Math.PI + 360) % 360, 'azi');
+    dialDrag($('altitude-gauge'), (x, y) => Math.atan2(105 - y, 100 - x) * 180 / Math.PI, 'alt');
     $('goto-btn').addEventListener('click', () => action($('goto-btn'), goThere));
     document.querySelectorAll('#presets button').forEach(btn => {
         btn.addEventListener('click', () => action(btn, () => apiCall(`/tracker/position/${btn.dataset.preset}`, 'POST')));
