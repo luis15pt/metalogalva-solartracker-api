@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from typing import List
@@ -214,6 +215,29 @@ async def _goto_changed():
 
 
 goto = GotoController(serial_handler, lambda: current_status, _goto_changed)
+
+
+# Hold-to-move: the browser refreshes the jog while an arrow is held. If the
+# refreshes stop (released, page closed, WiFi dropped) the Pi sends stop itself.
+JOG_KEEPALIVE = 2.0   # seconds a jog survives without a refresh
+JOG_MIN_RUN = 2.0     # the tracker needs ~1.5 s to start moving, so a tap runs this long
+_jog = {"direction": None, "started": 0.0, "deadline": 0.0}
+
+
+async def _jog_watchdog(token: float):
+    """Send stop once the current jog's deadline passes."""
+    while _jog["direction"] is not None and _jog["started"] == token:
+        if time.monotonic() >= _jog["deadline"]:
+            _jog["direction"] = None
+            await serial_handler.stop()
+            return
+        await asyncio.sleep(0.1)
+
+
+async def _preempt():
+    """Another command takes over: forget any held jog and abort a running go-to."""
+    _jog["direction"] = None
+    await goto.cancel("Stopped by another command")
 
 
 async def on_serial_data(data: bytes):
@@ -472,7 +496,7 @@ async def get_tracker_status():
 @app.post("/tracker/move", response_model=CommandResponse)
 async def move_tracker(command: MoveCommand):
     """Move tracker in a direction."""
-    await goto.cancel("Stopped by another command")
+    await _preempt()
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
@@ -495,7 +519,7 @@ async def move_tracker(command: MoveCommand):
 @app.post("/tracker/move/{direction}/start", response_model=CommandResponse)
 async def start_move(direction: Direction):
     """Start moving in a direction (hold)."""
-    await goto.cancel("Stopped by another command")
+    await _preempt()
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
@@ -509,7 +533,7 @@ async def start_move(direction: Direction):
 @app.post("/tracker/move/{direction}/stop", response_model=CommandResponse)
 async def stop_move(direction: Direction):
     """Stop moving in a direction."""
-    await goto.cancel("Stopped by another command")
+    await _preempt()
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
@@ -520,10 +544,43 @@ async def stop_move(direction: Direction):
     )
 
 
+@app.post("/tracker/jog/release", response_model=CommandResponse)
+async def jog_release():
+    """The arrow was released: stop, but not before the minimum run time."""
+    if _jog["direction"] is not None:
+        _jog["deadline"] = max(time.monotonic(), _jog["started"] + JOG_MIN_RUN)
+    return CommandResponse(success=True, message="Released")
+
+
+@app.post("/tracker/jog/{direction}", response_model=CommandResponse)
+async def jog(direction: Direction):
+    """
+    Hold-to-move. Call repeatedly (about once a second) while the arrow is held.
+
+    The first call starts the movement; later calls only keep it alive. Without a
+    refresh for 2 seconds the Pi sends stop. /tracker/stop stops immediately.
+    """
+    if not serial_handler.is_connected or not current_status.link_ok:
+        raise HTTPException(status_code=400, detail="No link to the tracker")
+    if current_status.mode != OperatingMode.MANUAL:
+        raise HTTPException(status_code=409, detail="Switch to manual mode first")
+    await goto.cancel("Stopped by another command")
+    now = time.monotonic()
+    if _jog["direction"] != direction:
+        if not await serial_handler.move(direction, start=True):
+            _jog["direction"] = None
+            raise HTTPException(status_code=500, detail="Command failed")
+        _jog.update(direction=direction, started=now, deadline=now + JOG_KEEPALIVE)
+        asyncio.create_task(_jog_watchdog(now))
+    else:
+        _jog["deadline"] = now + JOG_KEEPALIVE
+    return CommandResponse(success=True, message=f"Moving {direction.value}")
+
+
 @app.post("/tracker/stop", response_model=CommandResponse)
 async def stop_all():
     """Stop all movement."""
-    await goto.cancel("Stopped by another command")
+    await _preempt()
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
@@ -537,7 +594,7 @@ async def stop_all():
 @app.post("/tracker/mode/{mode}", response_model=CommandResponse)
 async def set_mode(mode: OperatingMode):
     """Set operating mode."""
-    await goto.cancel("Stopped by another command")
+    await _preempt()
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
@@ -642,7 +699,7 @@ async def go_to_preset_position(position: PresetPosition):
     - horizontal: panel flat
     - vertical: panel at its most upright (altitude 25 degrees)
     """
-    await goto.cancel("Stopped by another command")
+    await _preempt()
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
     success = await serial_handler.go_to_position(position)
@@ -665,6 +722,7 @@ async def go_to_angle(command: GotoCommand):
         raise HTTPException(status_code=400, detail="No link to the tracker")
     if current_status.mode != OperatingMode.MANUAL:
         raise HTTPException(status_code=409, detail="Switch to manual mode first")
+    _jog["direction"] = None
     try:
         goto.start(command.altitude, command.azimuth)
     except GotoError as e:
@@ -690,7 +748,7 @@ async def zero_panel(confirm: bool = False):
     """ZERAR PAINEL: start the tracker's homing routine. The tracker will move."""
     if not confirm:
         raise HTTPException(status_code=400, detail="Homing moves the tracker; pass confirm=true")
-    await goto.cancel("Stopped by another command")
+    await _preempt()
     if not serial_handler.is_connected:
         raise HTTPException(status_code=400, detail="Not connected")
     success = await serial_handler.zero_panel()

@@ -463,6 +463,7 @@ function updateUI(status) {
     document.querySelector('.controls-col').classList.toggle('locked', !manual);
     document.querySelectorAll('#dpad button, #presets button').forEach(b => { b.disabled = !manual; });
     updateGoto(status, manual);
+    $('manual-hint').textContent = manual ? 'Hold an arrow to move, release to stop' : 'Switch to Manual to move the panel';
     setChip($('chip-mode'), manual ? 'Manual' : 'Auto tracking', manual ? 'warn' : 'ok');
 
     // Tracker clock (UTC)
@@ -765,10 +766,26 @@ async function goThere() {
     return apiCall('/tracker/goto', 'POST', body);
 }
 
-async function nudge(dir, ms) {
-    await apiCall(`/tracker/move/${dir}/start`, 'POST');
-    await new Promise(r => setTimeout(r, ms));
-    await apiCall(`/tracker/move/${dir}/stop`, 'POST');
+// Hold-to-move: refresh the jog while an arrow is held; the Pi stops by itself
+// if the refreshes stop arriving.
+let jogDir = null, jogTimer = null, jogBtn = null;
+
+function jogStart(btn) {
+    if (jogDir || btn.disabled) return;
+    jogDir = btn.dataset.direction;
+    jogBtn = btn;
+    btn.classList.add('held');
+    const tick = () => apiCall(`/tracker/jog/${jogDir}`, 'POST').catch(e => { jogEnd(); alert(e.message); });
+    tick();
+    jogTimer = setInterval(tick, 700);
+}
+
+function jogEnd() {
+    if (!jogDir) return;
+    clearInterval(jogTimer);
+    jogBtn.classList.remove('held');
+    jogDir = jogTimer = jogBtn = null;
+    apiCall('/tracker/jog/release', 'POST').catch(() => {});
 }
 
 async function setWind() {
@@ -809,8 +826,20 @@ function setup() {
     });
 
     document.querySelectorAll('.dpad-btn[data-direction]').forEach(btn => {
-        btn.addEventListener('click', () => nudge(btn.dataset.direction, 500).catch(e => alert(e.message)));
+        btn.addEventListener('pointerdown', e => {
+            if (e.button) return;
+            e.preventDefault();
+            try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+            jogStart(btn);
+        });
+        ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => btn.addEventListener(ev, jogEnd));
+        btn.addEventListener('contextmenu', e => e.preventDefault());
+        btn.addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); jogStart(btn); } });
+        btn.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') jogEnd(); });
+        btn.addEventListener('blur', jogEnd);
     });
+    window.addEventListener('blur', jogEnd);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) jogEnd(); });
     el.stopBtn.addEventListener('click', () => action(el.stopBtn, () => apiCall('/tracker/stop', 'POST')));
     $('goto-alt').addEventListener('input', () => { gotoTouched.alt = true; showGotoValues(); });
     $('goto-azi').addEventListener('input', () => { gotoTouched.azi = true; showGotoValues(); });

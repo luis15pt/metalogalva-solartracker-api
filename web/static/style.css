@@ -468,6 +468,8 @@ header h1 {
 
 .dpad-sm { grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); gap: 3px; }
 .dpad-sm .dpad-btn { font-size: 1rem; }
+.dpad-btn[data-direction] { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.dpad-btn.held { background: var(--success); border-color: var(--success); color: #fff; }
 
 .dpad-btn.up { grid-column: 2; grid-row: 1; }
 .dpad-btn.left { grid-column: 1; grid-row: 2; }
@@ -618,7 +620,6 @@ footer {
 .goto-status { font-size: 0.75rem; min-height: 1.2em; text-align: center; color: var(--text-dim); }
 .goto-status.failed { color: #ff7b72; }
 .goto-status.done { color: #3fb950; }
-.controls-col:not(.locked) #manual-hint { display: none; }
 
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 0.85rem; }
 .kv dt { color: var(--text-dim); }
