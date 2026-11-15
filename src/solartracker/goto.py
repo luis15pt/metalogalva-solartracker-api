@@ -22,7 +22,7 @@ CORRECT_ABOVE = 1.0    # degrees: only re-run if the first run missed by more th
 FAIL_ABOVE = 2.0       # degrees: report failure beyond this
 LEAD_SECONDS = 1.3     # stop this early: status lag plus the tracker's stop latency
 FRAME_TIMEOUT = 4.0    # seconds without a status frame = link lost
-STALL_FRAMES = 5       # status frames without movement = not moving
+STALL_FRAMES = 8       # status frames without movement = not moving
 AXIS_TIMEOUT = 900     # seconds per axis
 DEFAULT_RATE = 0.7     # degrees per second, measured on the tilt axis
 
@@ -148,6 +148,8 @@ class GotoController:
                 return f"{axis.name} stopped at its limit switch ({axis.read():.1f}°)"
             await self._set(axis.name, f"Moving {axis.name} to {axis.target:.1f}°")
 
+            # Transmit just after a status frame, when the half-duplex line is free
+            await self._next_frame()
             await self._serial.move(axis.dirs[sign], start=True)
             deadline = loop.time() + AXIS_TIMEOUT
             last, stalled, wrong = axis.read(), 0, 0
@@ -166,6 +168,10 @@ class GotoController:
                         raise GotoError(f"{axis.name} is moving the wrong way, stopped")
                 else:
                     stalled += 1
+                    if stalled == 4:
+                        # The start command may have been lost on the line: send it once more
+                        logger.warning(f"GOTO: {axis.name} has not started, repeating the command")
+                        await self._serial.move(axis.dirs[sign], start=True)
                 if (axis.target - pos) * sign <= LEAD_SECONDS * rate:
                     break
                 if axis.limits[sign] in self._status().limit_switches:
