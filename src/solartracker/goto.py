@@ -3,6 +3,10 @@
 The firmware has no "go to angle" command, so this closes the loop on the Pi:
 start a jog, watch the once-per-second status frames, stop when the target is
 reached. Every exit path sends a stop command.
+
+A jog command ramps the firmware's internal target position rather than
+switching the motor directly, so pulses shorter than about a second do nothing
+or act late. Only continuous runs are used here; expect about 1 degree accuracy.
 """
 
 import asyncio
@@ -13,9 +17,10 @@ from .models import Direction, GotoState, OperatingMode, TrackerStatus
 
 logger = logging.getLogger(__name__)
 
-TOLERANCE = 0.3        # degrees: close enough
-PULSE_BELOW = 3.0      # degrees: finish with timed pulses instead of a free run
-LEAD_FRAMES = 1.8      # stop this many status periods early (status lag + stop latency)
+START_ABOVE = 0.5      # degrees: do nothing for smaller moves
+CORRECT_ABOVE = 1.0    # degrees: only re-run if the first run missed by more than this
+FAIL_ABOVE = 2.0       # degrees: report failure beyond this
+LEAD_SECONDS = 1.3     # stop this early: status lag plus the tracker's stop latency
 FRAME_TIMEOUT = 4.0    # seconds without a status frame = link lost
 STALL_FRAMES = 5       # status frames without movement = not moving
 AXIS_TIMEOUT = 900     # seconds per axis
@@ -134,58 +139,64 @@ class GotoController:
         rate = DEFAULT_RATE
         loop = asyncio.get_running_loop()
 
-        for attempt in range(5):
+        for attempt in range(3):
             err = axis.target - axis.read()
-            if abs(err) <= TOLERANCE:
+            if abs(err) <= (START_ABOVE if attempt == 0 else CORRECT_ABOVE):
                 break
             sign = 1 if err > 0 else -1
             if axis.limits[sign] in self._status().limit_switches:
                 return f"{axis.name} stopped at its limit switch ({axis.read():.1f}°)"
             await self._set(axis.name, f"Moving {axis.name} to {axis.target:.1f}°")
 
-            if abs(err) <= PULSE_BELOW:
-                # Short timed pulse for the last bit
-                await self._serial.move(axis.dirs[sign], start=True)
-                await asyncio.sleep(min(max(abs(err) / rate - 0.2, 0.25), 4.0))
-                await self._serial.stop()
-            else:
-                await self._serial.move(axis.dirs[sign], start=True)
-                deadline = loop.time() + AXIS_TIMEOUT
-                last, stalled, wrong = axis.read(), 0, 0
-                while True:
-                    await self._next_frame()
-                    self._check_faults(baseline)
-                    pos = axis.read()
-                    step = (pos - last) * sign
-                    last = pos
-                    if step > 0.02:
-                        stalled, wrong = 0, 0
-                        rate = max(0.1, min(step, 5.0))  # frames arrive once per second
-                    elif step < -0.05:
-                        wrong += 1
-                        if wrong >= 2:
-                            raise GotoError(f"{axis.name} is moving the wrong way, stopped")
-                    else:
-                        stalled += 1
-                    if (axis.target - pos) * sign <= LEAD_FRAMES * max(step, 0):
-                        break
-                    if axis.limits[sign] in self._status().limit_switches:
-                        break
-                    if stalled >= STALL_FRAMES:
-                        raise GotoError(f"{axis.name} is not moving (stuck at {pos:.1f}°)")
-                    if loop.time() > deadline:
-                        raise GotoError(f"{axis.name} timed out")
-                await self._serial.stop()
-
-            # Let it settle and let fresh status frames arrive
-            for _ in range(3):
+            await self._serial.move(axis.dirs[sign], start=True)
+            deadline = loop.time() + AXIS_TIMEOUT
+            last, stalled, wrong = axis.read(), 0, 0
+            while True:
                 await self._next_frame()
+                self._check_faults(baseline)
+                pos = axis.read()
+                step = (pos - last) * sign
+                last = pos
+                if step > 0.02:
+                    stalled, wrong = 0, 0
+                    rate = max(0.1, min(step, 5.0))  # frames arrive once per second
+                elif step < -0.05:
+                    wrong += 1
+                    if wrong >= 2:
+                        raise GotoError(f"{axis.name} is moving the wrong way, stopped")
+                else:
+                    stalled += 1
+                if (axis.target - pos) * sign <= LEAD_SECONDS * rate:
+                    break
+                if axis.limits[sign] in self._status().limit_switches:
+                    break
+                if stalled >= STALL_FRAMES:
+                    raise GotoError(f"{axis.name} is not moving (stuck at {pos:.1f}°)")
+                if loop.time() > deadline:
+                    raise GotoError(f"{axis.name} timed out")
+            await self._serial.stop()
+            await self._settle(axis)
             self._check_faults(baseline)
 
         err = axis.target - axis.read()
-        if abs(err) > 1.0:
+        if abs(err) > FAIL_ABOVE:
             sign = 1 if err > 0 else -1
             if axis.limits[sign] in self._status().limit_switches:
                 return f"{axis.name} stopped at its limit switch ({axis.read():.1f}°)"
             raise GotoError(f"{axis.name} ended at {axis.read():.1f}°, target {axis.target:.1f}°")
-        return f"{axis.name} at {axis.read():.1f}°"
+        return f"{axis.name} at {axis.read():.1f}° (asked {axis.target:.1f}°)"
+
+    async def _settle(self, axis: _Axis):
+        """Wait until the axis has really stopped; repeat the stop command if it has not."""
+        prev, still = axis.read(), 0
+        for i in range(10):
+            await self._next_frame()
+            pos = axis.read()
+            still = still + 1 if abs(pos - prev) < 0.02 else 0
+            prev = pos
+            if still >= 2:
+                return
+            if i >= 3 and still == 0:
+                logger.warning(f"GOTO: {axis.name} still moving after stop, repeating stop")
+                await self._serial.stop()
+        raise GotoError(f"{axis.name} did not stop when told to")
